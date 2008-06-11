@@ -21,13 +21,14 @@ class SCPreferences(object):
     def __init__(self):
         super(SCPreferences, self).__init__()
         self.session = SCPreferencesCreate(None, "set-proxy", None)
-        SCPreferencesLock(self.session, True)
     
     def save(self):
         if not self.session:
             return            
-        if not SCPreferencesCommitChanges(self.session) or not SCPreferencesApplyChanges(self.session) or not SCPreferencesUnlock(self.session):
-            raise RuntimeError("SystemConfiguration rejected our changes. Does this account have admin rights?")
+        if not SCPreferencesCommitChanges(self.session):
+            raise RuntimeError("Unable to save SystemConfiguration changes")
+        if not SCPreferencesApplyChanges(self.session):
+            raise RuntimeError("Unable to apply SystemConfiguration changes")
         
     def set_proxy(self, enable=True, protocol="HTTP", server="localhost", port=3128):        
         new_settings = SCPreferencesPathGetValue(self.session, u'/NetworkServices/')
