@@ -203,7 +203,7 @@ def add_workspace_notifications(nsw_config):
     
     class NotificationHandler(NSObject):
         def __init__(self):
-   	        self.callable = compile('raise NotImplementedError("No callable provided!")')
+             self.callable = compile('raise NotImplementedError("No callable provided!")')
         
         def onNotification_(self, aNotification):
             if aNotification.userInfo:
@@ -318,7 +318,8 @@ def fsevent_callback(streamRef, full_path, event_count, paths, masks, ids):
                 c(p, path=path, recursive=recursive)
 
 def timer_callback(*args):
-        logging.debug("timer callback at %s" % datetime.now())
+  pass
+  # logging.debug("timer callback at %s" % datetime.now())
 
 def main():
         global config, options
@@ -386,11 +387,15 @@ def do_shell(command, context=None, **kwargs):
 
 def add_conditional_restart(file, reason):
         """FSEvents monitors directories, not files. This function uses stat to restart only if the file's mtime has changed"""
+        file = os.path.realpath(file)
         orig_stat = os.stat(file).st_mtime
         
         def cond_restart(*args, **kwargs):
-            if os.stat(file).st_mtime != orig_stat:
-                restart(reason)
+            try:
+              if os.stat(file).st_mtime != orig_stat:
+                  restart(reason)
+            except Exception, e:
+                  restart("Exception while checking %s: %s" % (file, e))
         
         add_fs_notification(file, cond_restart)
 
