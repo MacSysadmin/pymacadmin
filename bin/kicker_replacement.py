@@ -116,11 +116,26 @@ def handle_sc_event(store, changedKeys, info):
 
 def list_events(option, opt_str, value, parser):
     """Displays the list of events which can be monitored on the current system"""
-    # TODO: Add some information for the NSWorkspace notifications which we can receive
     
     print 'On this system SystemConfiguration supports these events:'
     for e in sorted(SCDynamicStoreCopyKeyList(get_sc_store(), '.*')):
-        print "\t", e
+        print "   ", e
+    
+    print
+    print '''Standard NSWorkspace Notification messages:
+    NSWorkspaceDidLaunchApplicationNotification
+    NSWorkspaceDidMountNotification
+    NSWorkspaceDidPerformFileOperationNotification
+    NSWorkspaceDidTerminateApplicationNotification
+    NSWorkspaceDidWakeNotification
+    NSWorkspaceDidUnmountNotification
+    NSWorkspaceSessionDidBecomeActiveNotification
+    NSWorkspaceSessionDidResignActiveNotification
+    NSWorkspaceWillLaunchApplicationNotification
+    NSWorkspaceWillPowerOffNotification
+    NSWorkspaceWillSleepNotification
+    NSWorkspaceWillUnmountNotification
+'''
     
     sys.exit(0)
 
@@ -171,7 +186,7 @@ def load_config(options):
         }
         writePlist(example_config, options.config_file)
         sys.exit(1)
-        
+    
     pl = readPlist(options.config_file)
     
     if "imports" in pl:
