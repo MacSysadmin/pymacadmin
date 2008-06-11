@@ -11,7 +11,7 @@ class ProxyManager(BaseHandler):
         """A simple method which exists so this can be used for the workspace mount notification during testing"""
         return self.network_changed()
         
-    def network_changed(self):
+    def network_changed(self, *args, **kwargs):
 		# Open a SystemConfiguration preferences session:	
         sc_prefs = SCPreferences()
 
