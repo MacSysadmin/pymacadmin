@@ -119,23 +119,11 @@ def list_events(option, opt_str, value, parser):
     
     print 'On this system SystemConfiguration supports these events:'
     for e in sorted(SCDynamicStoreCopyKeyList(get_sc_store(), '.*')):
-        print "   ", e
+        print "\t", e
     
     print
-    print '''Standard NSWorkspace Notification messages:
-    NSWorkspaceDidLaunchApplicationNotification
-    NSWorkspaceDidMountNotification
-    NSWorkspaceDidPerformFileOperationNotification
-    NSWorkspaceDidTerminateApplicationNotification
-    NSWorkspaceDidWakeNotification
-    NSWorkspaceDidUnmountNotification
-    NSWorkspaceSessionDidBecomeActiveNotification
-    NSWorkspaceSessionDidResignActiveNotification
-    NSWorkspaceWillLaunchApplicationNotification
-    NSWorkspaceWillPowerOffNotification
-    NSWorkspaceWillSleepNotification
-    NSWorkspaceWillUnmountNotification
-'''
+    print "Standard NSWorkspace Notification messages:\n\t",
+    print "\n\t".join('''NSWorkspaceDidLaunchApplicationNotification NSWorkspaceDidMountNotification NSWorkspaceDidPerformFileOperationNotification NSWorkspaceDidTerminateApplicationNotification NSWorkspaceDidWakeNotification NSWorkspaceDidUnmountNotification NSWorkspaceSessionDidBecomeActiveNotification NSWorkspaceSessionDidResignActiveNotification NSWorkspaceWillLaunchApplicationNotification NSWorkspaceWillPowerOffNotification NSWorkspaceWillSleepNotification NSWorkspaceWillUnmountNotification'''.split())
     
     sys.exit(0)
 
@@ -337,44 +325,48 @@ def timer_callback(*args):
   # logging.debug("timer callback at %s" % datetime.now())
 
 def main():
-        global config, options
-        options     = parse_options()
-        sys.argv[0] = os.path.realpath(sys.argv[0])
-        config      = load_config(options)
-        configure_logging()
+    global config, options
+
+    options     = parse_options()
+    sys.argv[0] = os.path.realpath(sys.argv[0])
+    config      = load_config(options)
+
+    configure_logging()
         
-        if "NSWorkspace" in config:
-            add_workspace_notifications(config['NSWorkspace'])
-        
-        if "SystemConfiguration" in config:
-            add_sc_notifications(config['SystemConfiguration'])
-        
-        if "FSEvents" in config:
-            add_fs_notifications(config['FSEvents'])
-        
-        # We reuse our FSEvents code to watch for changes to our files and
-        # restart:
-        add_conditional_restart(options.config_file, "Configuration file %s changed" % options.config_file)
-        for (m_name,m_file) in [(k,v) for k,v in sys.modules.iteritems() if hasattr(v, '__file__')]:
-            add_conditional_restart(m_file.__file__, "Module %s was updated" % m_name)
-        
-        signal.signal(signal.SIGHUP, partial(restart, "SIGHUP received"))
-        
-        start_fs_events()
-        
-        # FIXME: This is basically a kludge around the fact that we can't get signals or Control-C inside a runloop:
-        CFRunLoopAddTimer(
-                NSRunLoop.currentRunLoop().getCFRunLoop(),
-                CFRunLoopTimerCreate(None, CFAbsoluteTimeGetCurrent(), 5.0, 0, 0, timer_callback, None),
-                kCFRunLoopCommonModes
-        )
-        
-        try:
-            AppHelper.runConsoleEventLoop(installInterrupt=True)
-        except KeyboardInterrupt, e:
-            logging.info("KeyboardInterrupt received, exiting")
-        
-        sys.exit(0)
+    if "NSWorkspace" in config:
+        add_workspace_notifications(config['NSWorkspace'])
+    
+    if "SystemConfiguration" in config:
+        add_sc_notifications(config['SystemConfiguration'])
+    
+    if "FSEvents" in config:
+        add_fs_notifications(config['FSEvents'])
+    
+    # We reuse our FSEvents code to watch for changes to our files and
+    # restart:
+    add_conditional_restart(options.config_file, "Configuration file %s changed" % options.config_file)
+    for (m_name,m_file) in [(k,v) for k,v in sys.modules.iteritems() if hasattr(v, '__file__')]:
+        add_conditional_restart(m_file.__file__, "Module %s was updated" % m_name)
+    
+    signal.signal(signal.SIGHUP, partial(restart, "SIGHUP received"))
+    
+    start_fs_events()
+    
+    # NOTE: This timer is basically a kludge around the fact that we can't reliably get 
+    #       signals or Control-C inside a runloop. This wakes us up often enough to
+    #       appear tolerably responsive:
+    CFRunLoopAddTimer(
+        NSRunLoop.currentRunLoop().getCFRunLoop(),
+        CFRunLoopTimerCreate(None, CFAbsoluteTimeGetCurrent(), 5.0, 0, 0, timer_callback, None),
+        kCFRunLoopCommonModes
+    )
+    
+    try:
+        AppHelper.runConsoleEventLoop(installInterrupt=True)
+    except KeyboardInterrupt, e:
+        logging.info("KeyboardInterrupt received, exiting")
+    
+    sys.exit(0)
 
 def do_shell(command, context=None, **kwargs):
         """Executes a shell command with logging"""

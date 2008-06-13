@@ -2,6 +2,14 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
   <dict>
+    <key>NSWorkspace</key>
+    <dict>
+      <key>NSWorkspaceDidMountNotification</key>
+      <dict>
+        <key>class</key>
+        <string>ProxyManager</string>
+      </dict>
+    </dict>
     <key>SystemConfiguration</key>
     <dict>
       <key>State:/Network/Global/IPv4</key>
