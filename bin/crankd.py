@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # encoding: utf-8
 """
-Usage: kicker-replacement
+Usage: crankd
 
 Monitor system event notifications
 
@@ -19,7 +19,6 @@ class:        the name of a python class which will be instantiated once
 method:       (class, method) tuple
 
 TODO: Cleanup use of global variables
-TODO:
 
 Inspired by the PyObjC SystemConfiguration callback demos:
         <https://svn.red-bean.com/pyobjc/trunk/pyobjc/pyobjc-framework-SystemConfiguration/Examples/CallbackDemo/>
@@ -123,15 +122,28 @@ def list_events(option, opt_str, value, parser):
     
     print
     print "Standard NSWorkspace Notification messages:\n\t",
-    print "\n\t".join('''NSWorkspaceDidLaunchApplicationNotification NSWorkspaceDidMountNotification NSWorkspaceDidPerformFileOperationNotification NSWorkspaceDidTerminateApplicationNotification NSWorkspaceDidWakeNotification NSWorkspaceDidUnmountNotification NSWorkspaceSessionDidBecomeActiveNotification NSWorkspaceSessionDidResignActiveNotification NSWorkspaceWillLaunchApplicationNotification NSWorkspaceWillPowerOffNotification NSWorkspaceWillSleepNotification NSWorkspaceWillUnmountNotification'''.split())
+    print "\n\t".join('''
+        NSWorkspaceDidLaunchApplicationNotification
+        NSWorkspaceDidMountNotification
+        NSWorkspaceDidPerformFileOperationNotification
+        NSWorkspaceDidTerminateApplicationNotification
+        NSWorkspaceDidUnmountNotification
+        NSWorkspaceDidWakeNotification 
+        NSWorkspaceSessionDidBecomeActiveNotification
+        NSWorkspaceSessionDidResignActiveNotification
+        NSWorkspaceWillLaunchApplicationNotification
+        NSWorkspaceWillPowerOffNotification 
+        NSWorkspaceWillSleepNotification
+        NSWorkspaceWillUnmountNotification
+    '''.split())
     
     sys.exit(0)
 
 def parse_options():
     parser          = OptionParser(__doc__.strip())
     support_path    = '/Library/' if os.getuid() == 0 else os.path.expanduser('~/Library/')
-    preference_file = os.path.join(support_path, 'Preferences', 'org.improbable.kicker-replacement.plist')
-    module_path     = os.path.join(support_path, 'Application Support/kicker-replacement')
+    preference_file = os.path.join(support_path, 'Preferences', 'com.googlecode.pymacadmin.crankd.plist')
+    module_path     = os.path.join(support_path, 'Application Support/crankd')
     
     if os.path.exists(module_path):
         sys.path.append(module_path)
@@ -198,7 +210,7 @@ def configure_logging():
 
 def get_sc_store():
     """Returns an SCDynamicStore instance"""
-    return SCDynamicStoreCreate(None, "kicker-replacement", handle_sc_event, None)
+    return SCDynamicStoreCreate(None, "crankd", handle_sc_event, None)
 
 def add_workspace_notifications(nsw_config):
     # See http://developer.apple.com/documentation/Cocoa/Conceptual/Workspace/Workspace.html
