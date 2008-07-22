@@ -1,25 +1,17 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
+<dict>
+  <key>SystemConfiguration</key>
   <dict>
-    <key>NSWorkspace</key>
+    <key>State:/Network/Global/IPv4</key>
     <dict>
-      <key>NSWorkspaceDidMountNotification</key>
-      <dict>
-        <key>class</key>
-        <string>ProxyManager</string>
-      </dict>
-    </dict>
-    <key>SystemConfiguration</key>
-    <dict>
-      <key>State:/Network/Global/IPv4</key>
-      <dict>
-        <key>method</key>
+      <key>method</key>
         <array>
           <string>ProxyManager</string>
           <string>network_changed</string>
         </array>
-      </dict>
     </dict>
   </dict>
+	</dict>
 </plist>
