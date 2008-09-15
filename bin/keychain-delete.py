@@ -4,7 +4,6 @@
 Demonstrates how to delete a Keychain item using Python's ctypes library
 """
 
-import objc
 import ctypes
 
 service_name     = 'Service Name'
@@ -20,11 +19,11 @@ print "Searching for the password"
 
 rc = Security.SecKeychainFindGenericPassword(
     None,
-    len(service_name), 
+    len(service_name),
     service_name,
-    len(account_name), 
+    len(account_name),
     account_name,
-    None, # Used if you want to  retrieve the password: ctypes.byref(password_length), 
+    None, # Used if you want to  retrieve the password: ctypes.byref(password_length),
     None, # ctypes.pointer(password_pointer),
     ctypes.pointer(item)
 )
@@ -34,7 +33,7 @@ if rc != 0:
 
 # print password_pointer.value[:password_length.value]
 
-rc = Security.SecKeychainItemDelete( item );
+rc = Security.SecKeychainItemDelete( item )
 
 if rc != 0:
     raise RuntimeError('SecKeychainItemDelete failed: rc=%d' % rc)
