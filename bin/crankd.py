@@ -26,9 +26,9 @@ Inspired by the PyObjC SystemConfiguration callback demos:
 
 __all__ = ['BaseHandler', 'do_shell']
 
-from Cocoa import *
-from SystemConfiguration import *
-from FSEvents import *
+from Cocoa import CFRunLoopAddSource, NSObject, NSWorkspace, NSRunLoop, kCFRunLoopCommonModes
+from SystemConfiguration import SCDynamicStoreCopyKeyList, SCDynamicStoreCreate, SCDynamicStoreSetNotificationKeys, SCDynamicStoreCreateRunLoopSource
+from FSEvents import FSEventStreamCreate, FSEventStreamScheduleWithRunLoop, FSEventStreamStart
 import os, os.path
 import logging, logging.handlers
 import sys
@@ -40,18 +40,26 @@ from functools import partial
 import signal
 from datetime import datetime
 
-handler_objects  = dict()     # Events which have a "class" handler use an instantiated object; we want to load only one copy
-sc_handlers      = dict()     # Callbacks indexed by SystemConfiguration keys
-fs_watched_files = dict()     # Callbacks indexed by filesystem path
+HANDLER_OBJECTS  = dict()     # Events which have a "class" handler use an instantiated object; we want to load only one copy
+SC_HANDLERS      = dict()     # Callbacks indexed by SystemConfiguration keys
+FS_WATCHED_FILES = dict()     # Callbacks indexed by filesystem path
 
 class BaseHandler(object):
+    """A base class from which event handlers can inherit things like the system logger"""
     options = {}
     logger  = logging.getLogger()
 
 def get_callable_for_event(name, config, context=None):
-    # NOTE: This function does not process "class" handlers - by
-    #       design they are passed to a system library which will call
-    #       their method(s) directly
+    """
+        Returns a callable object which can be used as a callback for any
+        event. The returned function has context information, logging, etc.
+        included so they do not need to be passed when the actual event
+        occurs.
+
+        NOTE: This function does not process "class" handlers - by design they
+        are passed to the system libraries which expect a delegate object with
+        various event handling methods
+    """
     
     kwargs = {
         'context':  context,
@@ -62,15 +70,15 @@ def get_callable_for_event(name, config, context=None):
     }
     
     if "command" in config:
-        c = partial(do_shell, config["command"], **kwargs)
+        f = partial(do_shell, config["command"], **kwargs)
     elif "function" in config:
-        c = partial(get_callable_from_string(config["function"]), **kwargs)
+        f = partial(get_callable_from_string(config["function"]), **kwargs)
     elif "method" in config:
-        c = partial(getattr(get_handler_object(config['method'][0]), config['method'][1]), **kwargs)
+        f = partial(getattr(get_handler_object(config['method'][0]), config['method'][1]), **kwargs)
     else:
         raise AttributeError("%s have a class, method, function or command" % name)
     
-    return c
+    return f
 
 def get_mod_func(callback):
     """Convert a fully-qualified module.function name to (module, function) - stolen from Django"""
@@ -94,31 +102,32 @@ def get_callable_from_string(f_name):
         
         return getattr(module, func_name)
     
-    except (ImportError, AttributeError), e:
-        raise RuntimeError("Unable to create a callable object for '%s': %s" % (f_name, e))
+    except (ImportError, AttributeError), exc:
+        raise RuntimeError("Unable to create a callable object for '%s': %s" % (f_name, exc))
 
 def get_handler_object(class_name):
-    global handler_objects
+    """Return a single instance of the given class name, instantiating it if necessary"""
+    global HANDLER_OBJECTS
     
-    if class_name not in handler_objects:
-        ho = get_callable_from_string(class_name)()
-        if isinstance(ho, BaseHandler):
-            ho.logger  = logging.getLogger()
-            ho.options = options
-        handler_objects[class_name] = ho
+    if class_name not in HANDLER_OBJECTS:
+        h_obj = get_callable_from_string(class_name)()
+        if isinstance(h_obj, BaseHandler):
+            h_obj.logger  = logging.getLogger()
+            h_obj.options = options
+        HANDLER_OBJECTS[class_name] = h_obj
     
-    return handler_objects[class_name]
+    return HANDLER_OBJECTS[class_name]
 
 def handle_sc_event(store, changedKeys, info):
     for key in changedKeys:
-        sc_handlers[key](key=key, info=info)
+        SC_HANDLERS[key](key=key, info=info)
 
 def list_events(option, opt_str, value, parser):
     """Displays the list of events which can be monitored on the current system"""
     
     print 'On this system SystemConfiguration supports these events:'
-    for e in sorted(SCDynamicStoreCopyKeyList(get_sc_store(), '.*')):
-        print "\t", e
+    for event in sorted(SCDynamicStoreCopyKeyList(get_sc_store(), '.*')):
+        print "\t", event
     
     print
     print "Standard NSWorkspace Notification messages:\n\t",
@@ -128,11 +137,11 @@ def list_events(option, opt_str, value, parser):
         NSWorkspaceDidPerformFileOperationNotification
         NSWorkspaceDidTerminateApplicationNotification
         NSWorkspaceDidUnmountNotification
-        NSWorkspaceDidWakeNotification 
+        NSWorkspaceDidWakeNotification
         NSWorkspaceSessionDidBecomeActiveNotification
         NSWorkspaceSessionDidResignActiveNotification
         NSWorkspaceWillLaunchApplicationNotification
-        NSWorkspaceWillPowerOffNotification 
+        NSWorkspaceWillPowerOffNotification
         NSWorkspaceWillSleepNotification
         NSWorkspaceWillUnmountNotification
     '''.split())
@@ -148,10 +157,10 @@ def parse_options():
     if os.path.exists(module_path):
         sys.path.append(module_path)
     else:
-        print >>sys.stderr, "Module path %s does not exist: Python event handlers will need to be specified using absolute pathnames" % module_path
+        print >>sys.stderr, "Module directory %s does not exist: Python handlers will need to use absolute pathnames" % module_path
     
-    parser.add_option("-f", "--config", dest="config_file", metavar="CONFIG_FILE", help='Use an alternate config file instead of %default', default=preference_file)
-    parser.add_option("-l", "--list-events", action="callback", callback=list_events, help="Prints the list of events which can be listened for and exits")
+    parser.add_option("-f", "--config", dest="config_file", help='Use an alternate config file instead of %default', default=preference_file)
+    parser.add_option("-l", "--list-events", action="callback", callback=list_events, help="List the events which can be monitored")
     (options, args) = parser.parse_args()
     
     if len(args):
@@ -187,19 +196,20 @@ def load_config(options):
         writePlist(example_config, options.config_file)
         sys.exit(1)
     
-    pl = readPlist(options.config_file)
+    plist = readPlist(options.config_file)
     
-    if "imports" in pl:
-        for m in pl['imports']:
+    if "imports" in plist:
+        for module in plist['imports']:
             try:
-                __import__(m)
-            except ImportError, e:
-                print >>sys.stderr("Unable to import %s: %s" % (m, e))
+                __import__(module)
+            except ImportError, exc:
+                print >>sys.stderr, "Unable to import %s: %s" % (module, exc)
                 sys.exit(1)
-    return pl
+    return plist
 
 def configure_logging():
-    logging.basicConfig(level=logging.DEBUG, format='%(levelname)s: %(message)s')
+    default_level = logging.DEBUG if sys.stdin.isatty() else logging.INFO
+    logging.basicConfig(level=default_level, format='%(levelname)s: %(message)s')
     # Normally this would not be necessary but logging assumes syslog listens on
     # localhost syslog/udp, which is disabled on 10.5 (rdar://5871746)
     syslog = logging.handlers.SysLogHandler('/var/run/syslog')
@@ -214,11 +224,11 @@ def get_sc_store():
 
 def add_workspace_notifications(nsw_config):
     # See http://developer.apple.com/documentation/Cocoa/Conceptual/Workspace/Workspace.html
-    notificationCenter = NSWorkspace.sharedWorkspace().notificationCenter()
+    notification_center = NSWorkspace.sharedWorkspace().notification_center()
     
     class NotificationHandler(NSObject):
         def __init__(self):
-             self.callable = compile('raise NotImplementedError("No callable provided!")')
+            self.callable = compile('raise NotImplementedError("No callable provided!")')
         
         def onNotification_(self, aNotification):
             if aNotification.userInfo:
@@ -229,43 +239,46 @@ def add_workspace_notifications(nsw_config):
     
     
     for event in nsw_config:
-        ec = nsw_config[event]
+        event_config = nsw_config[event]
         
-        if "class" in ec:
-            obj         = get_handler_object(ec['class'])
+        if "class" in event_config:
+            obj         = get_handler_object(event_config['class'])
             objc_method = "on%s:" % event
             py_method   = objc_method.replace(":", "_")
             if not hasattr(obj, py_method) or not callable(getattr(obj, py_method)):
-                print >>sys.stderr, "NSWorkspace notification %s: handler class %s must define a %s method" % (event, ec['class'], py_method)
+                print >>sys.stderr, \
+                    "NSWorkspace Notification %s: handler class %s must define a %s method" % (event, event_config['class'], py_method)
                 sys.exit(1)
             
-            notificationCenter.addObserver_selector_name_object_(obj, objc_method, event, None)
+            notification_center.addObserver_selector_name_object_(obj, objc_method, event, None)
         else:
             handler          = NotificationHandler.new()
             handler.name     = "NSWorkspace Notification %s" % event
-            handler.callable = get_callable_for_event(event, ec, context=handler.name)
+            handler.callable = get_callable_for_event(event, event_config, context=handler.name)
             
             assert(callable(handler.onNotification_))
             
-            notificationCenter.addObserver_selector_name_object_(handler, "onNotification:", event, None)
+            notification_center.addObserver_selector_name_object_(handler, "onNotification:", event, None)
     
     logging.info("Listening for these NSWorkspace notifications: %s" % ', '.join(nsw_config.keys()))
 
 def add_sc_notifications(sc_config):
-    # This uses the SystemConfiguration framework to get a SCDynamicStore session
-    # and register for certain events. See the Apple SystemConfiguration
-    # documentation for details:
-    #
-    # <http://developer.apple.com/documentation/Networking/Reference/SysConfig/SCDynamicStore/CompositePage.html>
-    #
-    # TN1145 may also be of interest:
-    #     <http://developer.apple.com/technotes/tn/tn1145.html>
+    """
+    This uses the SystemConfiguration framework to get a SCDynamicStore session
+    and register for certain events. See the Apple SystemConfiguration
+    documentation for details:
+    
+    <http://developer.apple.com/documentation/Networking/Reference/SysConfig/SCDynamicStore/CompositePage.html>
+    
+    TN1145 may also be of interest:
+        <http://developer.apple.com/technotes/tn/tn1145.html>
+    """
     
     keys = sc_config.keys()
     
     try:
         for key in keys:
-            sc_handlers[key] = get_callable_for_event(key, sc_config[key], context="SystemConfiguration: %s" % key)
+            SC_HANDLERS[key] = get_callable_for_event(key, sc_config[key], context="SystemConfiguration: %s" % key)
     except AttributeError, e:
         print >>sys.stderr, "Error configuring SystemConfiguration events:", e
         sys.exit(1)
@@ -275,13 +288,17 @@ def add_sc_notifications(sc_config):
     SCDynamicStoreSetNotificationKeys(store, None, keys)
     
     # Get a CFRunLoopSource for our store session and add it to the application's runloop:
-    CFRunLoopAddSource(NSRunLoop.currentRunLoop().getCFRunLoop(), SCDynamicStoreCreateRunLoopSource(None, store, 0), kCFRunLoopCommonModes)
+    CFRunLoopAddSource(
+        NSRunLoop.currentRunLoop().getCFRunLoop(), 
+        SCDynamicStoreCreateRunLoopSource(None, store, 0), 
+        kCFRunLoopCommonModes
+    )
     
     logging.info("Listening for these SystemConfiguration events: %s" % ', '.join(keys))
 
 def add_fs_notifications(fs_config):
-    for p in fs_config:
-        add_fs_notification(p, get_callable_for_event(p, fs_config[p], context="FSEvent: %s" % p))
+    for path in fs_config:
+        add_fs_notification(path, get_callable_for_event(path, fs_config[p], context="FSEvent: %s" % path))
 
 def add_fs_notification(f_path, callback):
     """Adds an FSEvent notification for the specified path"""
@@ -293,12 +310,21 @@ def add_fs_notification(f_path, callback):
         path = os.path.dirname(path)
     
     try:
-        fs_watched_files[path].append(callback)
+        FS_WATCHED_FILES[path].append(callback)
     except KeyError:
-        fs_watched_files[path] = [callback]
+        FS_WATCHED_FILES[path] = [callback]
 
 def start_fs_events():
-    streamRef = FSEventStreamCreate(kCFAllocatorDefault, fsevent_callback, None, fs_watched_files.keys(), kFSEventStreamEventIdSinceNow, 1.0, 0)
+    # TODO: Comment the FSEventStreamCreate() parameter list:
+    streamRef = FSEventStreamCreate(
+        None, # BUG: kCFAllocatorDefault?
+        fsevent_callback, 
+        None, 
+        FS_WATCHED_FILES.keys(), 
+        kFSEventStreamEventIdSinceNow, 
+        1.0, 
+        0
+    )
     
     if not streamRef:
         raise RuntimeError("FSEventStreamCreate() failed!")
@@ -308,7 +334,7 @@ def start_fs_events():
     if not FSEventStreamStart(streamRef):
         raise RuntimeError("Unable to start FSEvent stream!")
     
-    logging.debug("FSEventStream started for %d paths: %s" % (len(fs_watched_files), ", ".join(fs_watched_files)))
+    logging.debug("FSEventStream started for %d paths: %s" % (len(FS_WATCHED_FILES), ", ".join(FS_WATCHED_FILES)))
 
 def fsevent_callback(streamRef, full_path, event_count, paths, masks, ids):
     for i in range(event_count):
@@ -327,24 +353,23 @@ def fsevent_callback(streamRef, full_path, event_count, paths, masks, ids):
         else:
             recursive = False
         
-        for p in [k for k in fs_watched_files if path.startswith(k)]:
-            logging.debug("FSEvent: %s: processing %d callback(s) for path %s" % (p, len(fs_watched_files[p]), path))
-            for c in fs_watched_files[p]:
+        for p in [k for k in FS_WATCHED_FILES if path.startswith(k)]:
+            logging.debug("FSEvent: %s: processing %d callback(s) for path %s" % (p, len(FS_WATCHED_FILES[p]), path))
+            for c in FS_WATCHED_FILES[p]:
                 c(p, path=path, recursive=recursive)
 
 def timer_callback(*args):
-  pass
-  # logging.debug("timer callback at %s" % datetime.now())
+    logging.debug("timer callback at %s" % datetime.now())
 
 def main():
     global config, options
-
+    
     options     = parse_options()
     sys.argv[0] = os.path.realpath(sys.argv[0])
     config      = load_config(options)
-
+    
     configure_logging()
-        
+    
     if "NSWorkspace" in config:
         add_workspace_notifications(config['NSWorkspace'])
     
@@ -364,7 +389,7 @@ def main():
     
     start_fs_events()
     
-    # NOTE: This timer is basically a kludge around the fact that we can't reliably get 
+    # NOTE: This timer is basically a kludge around the fact that we can't reliably get
     #       signals or Control-C inside a runloop. This wakes us up often enough to
     #       appear tolerably responsive:
     CFRunLoopAddTimer(
@@ -381,46 +406,46 @@ def main():
     sys.exit(0)
 
 def do_shell(command, context=None, **kwargs):
-        """Executes a shell command with logging"""
-        logging.info("%s: executing %s" % (context, command))
-        
-        child_env = {'context':context}
-        for k in kwargs:
-            if callable(kwargs[k]):
-                continue
-            elif hasattr(kwargs[k], 'keys') and callable(kwargs[k].keys):
-                child_env.update(kwargs[k])
-            else:
-                child_env[k] = str(kwargs[k])
-        
-        try:
-            rc = call(command, shell=True, env=child_env)
-            if rc == 0:
-                logging.info("%s returned %d" % (command, rc))
-            elif rc < 0:
-                logging.error("%s was terminated by signal %d" % (command, -rc))
-            else:
-                logging.info("%s returned %d" % (command, rc))
-        except OSError, e:
-            logging.error("Got an exception when executing %s:" % (command, e))
+    """Executes a shell command with logging"""
+    logging.info("%s: executing %s" % (context, command))
+    
+    child_env = {'context':context}
+    for k in kwargs:
+        if callable(kwargs[k]):
+            continue
+        elif hasattr(kwargs[k], 'keys') and callable(kwargs[k].keys):
+            child_env.update(kwargs[k])
+        else:
+            child_env[k] = str(kwargs[k])
+    
+    try:
+        rc = call(command, shell=True, env=child_env)
+        if rc == 0:
+            logging.info("%s returned %d" % (command, rc))
+        elif rc < 0:
+            logging.error("%s was terminated by signal %d" % (command, -rc))
+        else:
+            logging.info("%s returned %d" % (command, rc))
+    except OSError, e:
+        logging.error("Got an exception when executing %s:" % (command, e))
 
 def add_conditional_restart(file, reason):
-        """FSEvents monitors directories, not files. This function uses stat to restart only if the file's mtime has changed"""
-        file = os.path.realpath(file)
-        orig_stat = os.stat(file).st_mtime
-        
-        def cond_restart(*args, **kwargs):
-            try:
-              if os.stat(file).st_mtime != orig_stat:
-                  restart(reason)
-            except Exception, e:
-                  restart("Exception while checking %s: %s" % (file, e))
-        
-        add_fs_notification(file, cond_restart)
+    """FSEvents monitors directories, not files. This function uses stat to restart only if the file's mtime has changed"""
+    file = os.path.realpath(file)
+    orig_stat = os.stat(file).st_mtime
+    
+    def cond_restart(*args, **kwargs):
+        try:
+            if os.stat(file).st_mtime != orig_stat:
+                restart(reason)
+        except Exception, e:
+            restart("Exception while checking %s: %s" % (file, e))
+    
+    add_fs_notification(file, cond_restart)
 
 def restart(reason, *args, **kwargs):
-        logging.info("Restarting: %s" % reason)
-        os.execv(sys.argv[0], sys.argv)
+    logging.info("Restarting: %s" % reason)
+    os.execv(sys.argv[0], sys.argv)
 
 if __name__ == '__main__':
     main()
