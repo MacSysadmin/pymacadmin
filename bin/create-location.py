@@ -1,10 +1,10 @@
 #!/usr/bin/python
 """
-Usage: %prog loc_name
+Usage: create_location.py loc_name
 
 Creates a new SystemConfiguration location for use in Network Preferences.
 Currently it copies the Automatic location but there's no reason why it
-couldn't define & configure the services at the same time.
+couldn't be extended to define & configure the services at the same time.
 """
 
 from SystemConfiguration import SCPreferencesCreate, \
@@ -12,6 +12,7 @@ from SystemConfiguration import SCPreferencesCreate, \
     kSCPrefSets, kSCPropUserDefinedName, SCPreferencesPathCreateUniqueChild, \
     SCPreferencesPathSetValue, CFDictionaryCreateMutableCopy
 import sys
+import re
 
 def main():
     if len(sys.argv) != 2:
@@ -38,8 +39,10 @@ def main():
     new_set[kSCPropUserDefinedName] = new_name
 
     new_set_path                    = SCPreferencesPathCreateUniqueChild(sc_prefs, "/%s" % kSCPrefSets)
-    if not new_set_path:
-        raise RuntimeError("SCPreferencesPathCreateUniqueChild() did not return a valid path for the new location!")
+    if not new_set_path \
+      or not re.match(r"^/%s/[^/]+$" % kSCPrefSets, new_set_path) \
+      or new_set_path in sets:
+        raise RuntimeError("SCPreferencesPathCreateUniqueChild() returned an invalid path for the new location: %s" % new_set_path)
     
     print 'Creating "%s" at %s using a copy of "%s"' % (new_name, new_set_path, automatic_set[kSCPropUserDefinedName])
 
