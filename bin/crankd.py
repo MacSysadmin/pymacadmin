@@ -26,9 +26,9 @@ Inspired by the PyObjC SystemConfiguration callback demos:
 
 __all__ = ['BaseHandler', 'do_shell']
 
-from Cocoa import CFRunLoopAddSource, NSObject, NSWorkspace, NSRunLoop, kCFRunLoopCommonModes
+from Cocoa import CFRunLoopAddSource, NSObject, NSWorkspace, NSRunLoop, kCFRunLoopCommonModes, CFRunLoopAddTimer, CFRunLoopTimerCreate, CFAbsoluteTimeGetCurrent
 from SystemConfiguration import SCDynamicStoreCopyKeyList, SCDynamicStoreCreate, SCDynamicStoreSetNotificationKeys, SCDynamicStoreCreateRunLoopSource
-from FSEvents import FSEventStreamCreate, FSEventStreamScheduleWithRunLoop, FSEventStreamStart
+from FSEvents import FSEventStreamCreate, FSEventStreamScheduleWithRunLoop, FSEventStreamStart, kFSEventStreamEventIdSinceNow, kCFRunLoopDefaultMode
 import os, os.path
 import logging, logging.handlers
 import sys
@@ -224,7 +224,7 @@ def get_sc_store():
 
 def add_workspace_notifications(nsw_config):
     # See http://developer.apple.com/documentation/Cocoa/Conceptual/Workspace/Workspace.html
-    notification_center = NSWorkspace.sharedWorkspace().notification_center()
+    notification_center = NSWorkspace.sharedWorkspace().notificationCenter()
     
     class NotificationHandler(NSObject):
         def __init__(self):
