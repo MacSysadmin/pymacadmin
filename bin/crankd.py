@@ -27,8 +27,8 @@ Inspired by the PyObjC SystemConfiguration callback demos:
 __all__ = ['BaseHandler', 'do_shell']
 
 from Cocoa import CFRunLoopAddSource, NSObject, NSWorkspace, NSRunLoop, kCFRunLoopCommonModes, CFRunLoopAddTimer, CFRunLoopTimerCreate, CFAbsoluteTimeGetCurrent
-from SystemConfiguration import SCDynamicStoreCopyKeyList, SCDynamicStoreCreate, SCDynamicStoreSetNotificationKeys, SCDynamicStoreCreateRunLoopSource
-from FSEvents import FSEventStreamCreate, FSEventStreamScheduleWithRunLoop, FSEventStreamStart, kFSEventStreamEventIdSinceNow, kCFRunLoopDefaultMode
+from SystemConfiguration import *
+from FSEvents import *
 import os, os.path
 import logging, logging.handlers
 import sys
