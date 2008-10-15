@@ -421,11 +421,11 @@ def do_shell(command, context=None, **kwargs):
     try:
         rc = call(command, shell=True, env=child_env)
         if rc == 0:
-            logging.info("%s returned %d" % (command, rc))
+            logging.debug("%s returned %d" % (command, rc))
         elif rc < 0:
             logging.error("%s was terminated by signal %d" % (command, -rc))
         else:
-            logging.info("%s returned %d" % (command, rc))
+            logging.error("%s returned %d" % (command, rc))
     except OSError, e:
         logging.error("Got an exception when executing %s:" % (command, e))
 
