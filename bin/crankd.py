@@ -432,6 +432,8 @@ def do_shell(command, context=None, **kwargs):
 def add_conditional_restart(file, reason):
     """FSEvents monitors directories, not files. This function uses stat to restart only if the file's mtime has changed"""
     file = os.path.realpath(file)
+    while not os.path.exists(file):
+      file = os.path.dirname(file)
     orig_stat = os.stat(file).st_mtime
     
     def cond_restart(*args, **kwargs):
