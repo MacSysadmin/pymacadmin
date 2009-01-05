@@ -7,17 +7,15 @@ Usage: keychain-internet-password-update.py account_name new_password
 Contributed by Matt Rosenberg
 """
 
-# Initialize modules
-import objc
 import ctypes
 import sys
 
 # Load Security.framework
 Security = ctypes.cdll.LoadLibrary('/System/Library/Frameworks/Security.framework/Versions/Current/Security')
 
-# Function to create an integer from a 4-byte string, required for finding keychain items based on protocol type
-def FourCharCode(s):
-    return ord(s[0]) << 24 | ord(s[1]) << 16 | ord(s[2]) << 8 | ord(s[3])
+def FourCharCode(fcc):
+    """Create an integer from the provided 4-byte string, required for finding keychain items based on protocol type"""
+    return ord(fcc[0]) << 24 | ord(fcc[1]) << 16 | ord(fcc[2]) << 8 | ord(fcc[3])
 
 def UpdatePassword(account_name, new_password, server_name, protocol_type_string=''):
     """
@@ -86,16 +84,14 @@ if len(sys.argv) != 3:
 account_name = sys.argv[1]
 new_password = sys.argv[2]
 
-"""
-Call UpdatePassword for each password to update.
-
-If more than one keychain item will match a server and account name, you must
-specify a protocol type. Otherwise, only the first matching item will be
-updated.
-    
-The list of protocol type codes is in
-/System/Library/Frameworks/Security.framework/Versions/Current/Headers/SecKeychain.h
-"""
+# Call UpdatePassword for each password to update.
+# 
+# If more than one keychain item will match a server and account name, you must
+# specify a protocol type. Otherwise, only the first matching item will be
+# updated.
+#     
+# The list of protocol type codes is in
+# /System/Library/Frameworks/Security.framework/Versions/Current/Headers/SecKeychain.h
 
 # Update a password without specifying a protocol type
 print "Updating password for site.domain.com"
