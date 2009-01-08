@@ -13,6 +13,7 @@ import sys
 import os
 from PyMacAdmin.Security.Keychain import Keychain
 
+
 def main():
     if len(sys.argv) < 3:
         print >> sys.stderr, __doc__.strip()
@@ -31,7 +32,7 @@ def main():
             item.update_password(new_password)
 
     except RuntimeError, exc:
-        print >> sys.stderr, "Unable to change password for Airport network %s: %s" % ( ssid, exc)
+        print >> sys.stderr, "Unable to change password for Airport network %s: %s" % (ssid, exc)
         sys.exit(1)
 
     print "Changed password for AirPort network %s to %s" % (ssid, new_password)
