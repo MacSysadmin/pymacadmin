@@ -16,7 +16,7 @@ import re
 
 def main():
     if len(sys.argv) != 2:
-        print >>sys.stderr, __doc__.strip()
+        print >> sys.stderr, __doc__.strip()
         sys.exit(1)
         
     new_name      = sys.argv[1] # How's that for old-school command-line handling?
@@ -57,4 +57,4 @@ if __name__ == '__main__':
     try:
         main()
     except StandardError, e:
-        print >>sys.stderr, "ERROR: " + e.message
+        print >> sys.stderr, "ERROR: " + e.message
