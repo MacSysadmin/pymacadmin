@@ -25,24 +25,24 @@ def main():
     # optparser inexplicably lacks a require option due to extreme
     # pedanticism but it's not worth switching to argparse:
     if not options.protocol:
-        print >>sys.stderr, "ERROR: You must specify a protocol to %s" % ("enable" if options.enable else "disable")
+        print >> sys.stderr, "ERROR: You must specify a protocol to %s" % ("enable" if options.enable else "disable")
         sys.exit(1)
     
     if options.enable and (not options.server or not options.port):
-        print >>sys.stderr, "ERROR: You must specify a %s proxy server and port" % options.protocol
+        print >> sys.stderr, "ERROR: You must specify a %s proxy server and port" % options.protocol
         sys.exit(1)
     
     try:
         gethostbyname(options.server)
-    except gaierror, e:
-        print >>sys.stderr, "ERROR: couldn't resolve server hostname %s: %s" % (options.server, e.args[1]) # e.message is broken in the standard socket.gaierror!
+    except gaierror, exc:
+        print >> sys.stderr, "ERROR: couldn't resolve server hostname %s: %s" % (options.server, exc.args[1]) # e.message is broken in the standard socket.gaierror!
         sys.exit(1)
     
     try:
         sc_prefs.set_proxy(enable=options.enable, protocol=options.protocol, server=options.server, port=options.port)
         sc_prefs.save()
-    except RuntimeError, e:
-        print >>sys.stderr, e.message
+    except RuntimeError, exc:
+        print >> sys.stderr, exc.message
 
 if __name__ == '__main__':
     main()
