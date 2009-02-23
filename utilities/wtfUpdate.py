@@ -19,6 +19,10 @@ Copyright [2009] Chris Barker
    limitations under the License.
 """
 
+# FIXME: Find missing </li> in generated output
+# TODO: Change HTML generation to serialize nested dicts so we can simplify the file handling code
+# TODO: Move HTML to a separate template file?
+
 import commands, os, sys, shutil
 from BeautifulSoup import BeautifulSoup
 
@@ -99,53 +103,58 @@ def writeHeaders(htmloutput):
     <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
     <html xmlns="http://www.w3.org/1999/xhtml">
     <head>
-    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
-    <title>wtfupdate</title>
-    
-    <!-- paste this code into your webpage -->
-    <link href="listexpander/listexpander.css" rel="stylesheet" type="text/css" media="screen" />
-    <script type="text/javascript" src="listexpander/listexpander.js"></script>
-    <!-- end -->
-    
-    <style>
-    
-    body{
-        margin:0;
-        padding:0;
-        background:#f1f1f1;
-        font:70% Arial, Helvetica, sans-serif;
-        color:#555;
-        line-height:150%;
-        text-align:left;
-    }
-    a{
-        text-decoration:none;
-        color:#057fac;
-    }
-    a:hover{
-        text-decoration:none;
-        color:#999;
-    }
-    h1{
-        font-size:140%;
-        margin:0 20px;
-        line-height:80px;
-    }
-    #container{
-        margin:0 auto;
-        width:680px;
-        background:#fff;
-        padding-bottom:20px;
-    }
-    #content{margin:0 20px;}
-    p{
-        margin:0 auto;
-        width:680px;
-        padding:1em 0;
-    }
-    
-    </style>
-    
+        <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+        <title>wtfupdate</title>
+
+        <script src="http://ajax.googleapis.com/ajax/libs/jquery/1.3.1/jquery.min.js" type="text/javascript" charset="utf-8"></script>
+        <script>
+            jQuery(function() {
+                // Look for <li> clicks and toggle the visibility of their child lists:
+                jQuery("li").live("click", function () { $(this).children("ul").toggle(); } );
+
+                // Hide second+ level lists to start:
+                jQuery("ul > li > ul").css("display", "none");
+                
+                // Add a (#) descendent count:
+                jQuery("li > ul").each(function() { $(this).before(" (" + $(this).find("li").length + ")") });
+            });
+        </script>
+        <style>    
+            body{
+                margin:0;
+                padding:0;
+                background:#f1f1f1;
+                font:70% Arial, Helvetica, sans-serif;
+                color:#555;
+                line-height:150%;
+                text-align:left;
+            }
+            a{
+                text-decoration:none;
+                color:#057fac;
+            }
+            a:hover{
+                text-decoration:none;
+                color:#999;
+            }
+            h1{
+                font-size:140%;
+                margin:0 20px;
+                line-height:80px;
+            }
+            #container{
+                margin:0 auto;
+                width:680px;
+                background:#fff;
+                padding-bottom:20px;
+            }
+            #content{margin:0 20px;}
+            p{
+                margin:0 auto;
+                width:680px;
+                padding:1em 0;
+            }
+        </style>
     </head>
     
     <body>
