@@ -25,7 +25,8 @@ class KeychainTests(unittest.TestCase):
     
     def test_find_airport_password(self):
         system_keychain = Keychain("/Library/Keychains/System.keychain")
-        system_keychain.find_generic_password(account_name="linksys") # BUG: Most people probably have this - but not everyone?
+        # BUG: Most people probably have this - but not everyone?
+        system_keychain.find_generic_password(account_name="linksys") 
     
     def test_find_nonexistent_generic_password(self):
         import uuid
@@ -54,7 +55,7 @@ class KeychainTests(unittest.TestCase):
 
     def test_add_and_remove_internet_password(self):
         import uuid
-        k            = Keychain()
+        k = Keychain()
         kwargs = {
             'server_name':         "pymacadmin.googlecode.com",
             'account_name':        "unittest",
