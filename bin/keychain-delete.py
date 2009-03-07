@@ -1,42 +1,56 @@
 #!/usr/bin/env python
 # encoding: utf-8
 """
-Demonstrates how to delete a Keychain item using Python's ctypes library
+Usage: %prog [--service=SERVICE_NAME] [--account=ACCOUNT_NAME] [--keychain=/path/to/keychain]
+
+Remove the specified password from the keychain
 """
 
-import ctypes
+from PyMacAdmin.Security.Keychain import Keychain
+import os
+import sys
+from optparse import OptionParser
 
-service_name     = 'Service Name'
-account_name     = 'Account Name'
-password_length  = ctypes.c_uint32(256)
-password_pointer = ctypes.c_char_p()
-item             = ctypes.c_char_p()
 
-print "Loading Security.framework"
-Security = ctypes.cdll.LoadLibrary('/System/Library/Frameworks/Security.framework/Versions/Current/Security')
+def main():
+    parser = OptionParser(__doc__.strip())
 
-print "Searching for the password"
+    parser.add_option('-a', '--account', '--account-name',
+        help="Set the account name"
+    )
 
-rc = Security.SecKeychainFindGenericPassword(
-    None,
-    len(service_name),
-    service_name,
-    len(account_name),
-    account_name,
-    # Used if you want to  retrieve the password:
-    None, # ctypes.byref(password_length),
-    None, # ctypes.pointer(password_pointer),
-    ctypes.pointer(item)
-)
+    parser.add_option('-s', '--service', '--service-name',
+        help="Set the service name"
+    )
 
-if rc != 0:
-    raise RuntimeError('SecKeychainFindGenericPassword failed: rc=%d' % rc)
+    parser.add_option('-k', '--keychain',
+        help="Path to the keychain file"
+    )
 
-print "Deleting Keychain item"
+    (options, args) = parser.parse_args()
 
-rc = Security.SecKeychainItemDelete( item )
+    if not options.keychain and os.getuid() == 0:
+        options.keychain = "/Library/Keychains/System.keychain"
 
-if rc != 0:
-    raise RuntimeError('SecKeychainItemDelete failed: rc=%d' % rc)
-    
-    
+    if not options.account and options.service:
+        parser.error("You must specify either an account or service name")
+
+    try:
+        keychain = Keychain(options.keychain)
+
+        item     = keychain.find_generic_password(
+            service_name=options.service,
+            account_name=options.account
+        )
+
+        print "Removing %s" % item
+        keychain.remove(item)
+    except KeyError, exc:
+        print >>sys.stderr, exc.message
+        sys.exit(0)
+    except RuntimeError, exc:
+        print >>sys.stderr, "Unable to delete keychain item: %s" % exc
+        sys.exit(1)
+
+if __name__ == "__main__":
+    main()
