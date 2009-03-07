@@ -1,4 +1,4 @@
-from kicker_replacement import BaseHandler
+from PyMacAdmin.crankd.handlers import BaseHandler
 
 class MountManager(BaseHandler):
     def onNSWorkspaceDidMountNotification_(self, aNotification):
