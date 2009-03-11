@@ -83,7 +83,6 @@ def main():
             SCPreferencesGetValue(sc_prefs, kSCPrefNetworkServices)[old_service_id],
             kCFPropertyListMutableContainersAndLeaves
         )
-        SCPreferencesPathCreateUniqueChild(sc_prefs, new_service_path)
         SCPreferencesPathSetValue(sc_prefs, new_service_path, new_service_cf)
 
         new_set[kSCCompNetwork][kSCCompService][new_service_id] = {
