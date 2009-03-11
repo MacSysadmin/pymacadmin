@@ -1,6 +1,6 @@
 #!/usr/bin/python
 """
-Usage: create_location.py loc_name
+Usage: %prog USER_VISIBLE_NAME
 
 Creates a new SystemConfiguration location for use in Network Preferences by
 copying the Automatic location
@@ -10,7 +10,9 @@ from SystemConfiguration import *
 from CoreFoundation import *
 import sys
 import re
-# TODO: Use logging & OptionParser for debug level
+import logging
+from optparse import OptionParser
+
 
 def copy_set(path, old_id, old_set):
     new_set      = CFPropertyListCreateDeepCopy(None, old_set, kCFPropertyListMutableContainersAndLeaves)
@@ -22,15 +24,29 @@ def copy_set(path, old_id, old_set):
 
     return new_set_path, new_set
 
+
 def main():
     # Ugly but this is easiest until we refactor this into an SCPrefs class:
     global sc_prefs
-    
-    if len(sys.argv) != 2:
-        print >> sys.stderr, __doc__.strip()
-        sys.exit(1)
 
-    new_name   = sys.argv[1]
+    logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
+
+    parser = OptionParser(__doc__.strip())
+
+    parser.add_option('-v', '--verbose', action="store_true",
+        help="Print more information"
+    )
+
+    (options, args) = parser.parse_args()
+
+    if not args:
+        parser.error("You must specify the user-visible name for the new location")
+
+    if options.verbose:
+        logging.getLogger().setLevel(logging.DEBUG)
+
+
+    new_name   = " ".join(args)
     sc_prefs   = SCPreferencesCreate(None, "create_location", None)
     sets       = SCPreferencesGetValue(sc_prefs, kSCPrefSets)
     old_set_id = None
@@ -46,13 +62,12 @@ def main():
         raise RuntimeError("Couldn't find Automatic set")
 
     old_set = sets[old_set_id]
+    logging.debug("Old set %s:\n%s" % (old_set_id, old_set))
 
-    print 'Creating "%s" using a copy of "%s"' % (new_name, old_set[kSCPropUserDefinedName])
-
+    logging.info('Creating "%s" using a copy of "%s"' % (new_name, old_set[kSCPropUserDefinedName]))
     new_set_path, new_set           = copy_set("/%s" % kSCPrefSets, old_set_id, old_set)
+    new_set_id                      = new_set_path.split('/')[-1]
     new_set[kSCPropUserDefinedName] = new_name
-
-    print "Old set %s:\n%s" % (old_set_id, old_set)
 
     service_map = dict()
 
@@ -86,7 +101,7 @@ def main():
 
     SCPreferencesPathSetValue(sc_prefs, new_set_path, new_set)
 
-    print "New Set %s:\n%s\n" % (new_set_path.split('/')[-1], new_set)
+    logging.debug("New Set %s:\n%s\n" % (new_set_id, new_set))
 
     if not SCPreferencesCommitChanges(sc_prefs):
         raise RuntimeError("Unable to save SystemConfiguration changes")
@@ -94,8 +109,10 @@ def main():
     if not SCPreferencesApplyChanges(sc_prefs):
         raise RuntimeError("Unable to apply SystemConfiguration changes")
 
+
 if __name__ == '__main__':
     try:
         main()
-    except StandardError, e:
-        print >> sys.stderr, "ERROR: %s" % e.message
+    except RuntimeError, e:
+        logging.critical(str(e))
+        sys.exit(1)
