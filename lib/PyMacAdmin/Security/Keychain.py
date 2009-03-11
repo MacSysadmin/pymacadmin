@@ -12,13 +12,12 @@ import os
 import ctypes
 from PyMacAdmin import Security
 
-
 class Keychain(object):
     """A friendlier wrapper for the Keychain API"""
     # TODO: Add support for SecKeychainSetUserInteractionAllowed
 
     def __init__(self, keychain_name=None):
-        self._keychain = self.open_keychain(keychain_name)
+        self.keychain_handle = self.open_keychain(keychain_name)
 
     def open_keychain(self, path=None):
         """Open a keychain file - if no path is provided, the user's default keychain will be used"""
@@ -43,8 +42,15 @@ class Keychain(object):
         password_length = ctypes.c_uint32(0)
         password_data   = ctypes.c_char_p(256)
 
+        # For our purposes None and "" should be equivalent but we need a real
+        # string for len() below:
+        if not service_name:
+            service_name = ""
+        if not account_name:
+            account_name = ""
+
         rc = Security.lib.SecKeychainFindGenericPassword (
-            self._keychain,
+            self.keychain_handle,
             len(service_name),                  # Length of service name
             service_name,                       # Service name
             len(account_name),                  # Account name length
@@ -81,7 +87,7 @@ class Keychain(object):
             port = int(port)
 
         rc = Security.lib.SecKeychainFindInternetPassword (
-            self._keychain,
+            self.keychain_handle,
             len(server_name),
             server_name,
             len(security_domain) if security_domain else 0,
@@ -117,7 +123,7 @@ class Keychain(object):
 
         if isinstance(item, InternetPassword):
             rc = Security.lib.SecKeychainAddInternetPassword(
-                self._keychain,
+                self.keychain_handle,
                 len(item.server_name),
                 item.server_name,
                 len(item.security_domain),
@@ -135,7 +141,7 @@ class Keychain(object):
             )
         else:
             rc = Security.lib.SecKeychainAddGenericPassword(
-                self._keychain,
+                self.keychain_handle,
                 len(item.service_name),
                 item.service_name,
                 len(item.account_name),
@@ -159,6 +165,7 @@ class Keychain(object):
 class GenericPassword(object):
     """Generic keychain password used with SecKeychainAddGenericPassword and SecKeychainFindGenericPassword"""
     # TODO: Add support for access control and attributes
+    # TODO: Add item name support
 
     account_name  = None
     service_name  = None
