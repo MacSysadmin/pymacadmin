@@ -28,7 +28,7 @@ def copy_set(path, old_id, old_set):
 def main():
     # Ugly but this is easiest until we refactor this into an SCPrefs class:
     global sc_prefs
-    
+
     logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
 
     parser = OptionParser(__doc__.strip())
