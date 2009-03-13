@@ -31,7 +31,7 @@ from Cocoa import \
     NSRunLoop, \
     NSWorkspace, \
     kCFRunLoopCommonModes
-    
+
 from SystemConfiguration import \
     SCDynamicStoreCopyKeyList, \
     SCDynamicStoreCreate, \
@@ -47,7 +47,7 @@ from FSEvents import \
     kFSEventStreamEventFlagMustScanSubDirs, \
     kFSEventStreamEventFlagUserDropped, \
     kFSEventStreamEventFlagKernelDropped
-    
+
 import os
 import os.path
 import logging
@@ -63,7 +63,7 @@ from datetime import datetime
 
 __all__          = ['BaseHandler', 'do_shell']
 
-VERSION          = '$Revision: 24$'
+VERSION          = '$Revision:$'
 
 HANDLER_OBJECTS  = dict()     # Events which have a "class" handler use an instantiated object; we want to load only one copy
 SC_HANDLERS      = dict()     # Callbacks indexed by SystemConfiguration keys
@@ -77,6 +77,32 @@ class BaseHandler(object):
     options = {}
     logger  = logging.getLogger()
 
+def log_list(msg, items, level=logging.INFO):
+    """
+    Record a a list of values with a message
+
+    This would ordinarily be a simple logging call but we want to keep the
+    length below the 1024-byte syslog() limitation and we'll format things
+    nicely by repeating our message with as many of the values as will fit.
+
+    Individual items longer than the maximum length will be truncated.
+    """
+
+    max_len    = 1024 - len(msg % "")
+    cur_len    = 0
+    cur_items  = list()
+
+    while [ i[:max_len] for i in items]:
+        i = items.pop()
+        if cur_len + len(i) + 2 > max_len:
+            logging.info(msg % ", ".join(cur_items))
+            cur_len = 0
+            cur_items = list()
+
+        cur_items.append(i)
+        cur_len += len(i) + 2
+
+    logging.log(level, msg % ", ".join(cur_items))
 
 def get_callable_for_event(name, event_config, context=None):
     """
@@ -138,7 +164,6 @@ def get_callable_from_string(f_name):
 
 def get_handler_object(class_name):
     """Return a single instance of the given class name, instantiating it if necessary"""
-    # BUG? global HANDLER_OBJECTS
 
     if class_name not in HANDLER_OBJECTS:
         h_obj = get_callable_from_string(class_name)()
@@ -152,6 +177,7 @@ def get_handler_object(class_name):
 
 def handle_sc_event(store, changed_keys, info):
     """Fire every event handler for one or more events"""
+
     for key in changed_keys:
         SC_HANDLERS[key](key=key, info=info)
 
@@ -201,6 +227,7 @@ def process_commandline():
 
     parser.add_option("-f", "--config", dest="config_file", help='Use an alternate config file instead of %default', default=preference_file)
     parser.add_option("-l", "--list-events", action="callback", callback=list_events, help="List the events which can be monitored")
+    parser.add_option("-d", "--debug", action="count", default=False, help="Log detailed progress information")
     (options, args) = parser.parse_args()
 
     if len(args):
@@ -252,9 +279,9 @@ def load_config(options):
 
 def configure_logging():
     """Configures the logging module"""
+    # TODO: Add separate log_level, console_level for logging? Or just skip straight to a logging config file?
 
-    # TODO: Make the log level configurable in our config file
-    default_level = logging.DEBUG if sys.stdin.isatty() else logging.INFO
+    default_level = logging.DEBUG if CRANKD_OPTIONS.debug else logging.INFO
 
     logging.basicConfig(level=default_level, format='%(levelname)s: %(message)s')
 
@@ -263,7 +290,7 @@ def configure_logging():
     # localhost syslog/udp, which is disabled on 10.5 (rdar://5871746)
     syslog = logging.handlers.SysLogHandler('/var/run/syslog')
     syslog.setFormatter(logging.Formatter('%(name)s: %(message)s'))
-    syslog.setLevel(logging.DEBUG)
+    syslog.setLevel(default_level)
     logging.getLogger().addHandler(syslog)
 
 
@@ -312,7 +339,7 @@ def add_workspace_notifications(nsw_config):
 
             notification_center.addObserver_selector_name_object_(handler, "onNotification:", event, None)
 
-    logging.info("Listening for these NSWorkspace notifications: %s" % ', '.join(nsw_config.keys()))
+    log_list("Listening for these NSWorkspace notifications: %s", nsw_config.keys())
 
 
 def add_sc_notifications(sc_config):
@@ -347,7 +374,7 @@ def add_sc_notifications(sc_config):
         kCFRunLoopCommonModes
     )
 
-    logging.info("Listening for these SystemConfiguration events: %s" % ', '.join(keys))
+    log_list("Listening for these SystemConfiguration events: %s", keys)
 
 
 def add_fs_notifications(fs_config):
@@ -380,7 +407,7 @@ def start_fs_events():
         1.0,                                # Process events within 1 second
         0                                   # We don't need any special flags for our stream
     )
-    
+
     if not stream_ref:
         raise RuntimeError("FSEventStreamCreate() failed!")
 
@@ -422,14 +449,15 @@ def timer_callback(*args):
 
 
 def main():
+    global CRANKD_OPTIONS, CRANKD_CONFIG
     CRANKD_OPTIONS = process_commandline()
     CRANKD_CONFIG  = load_config(CRANKD_OPTIONS)
 
-    # We replace the initial program name with one which won't break if relative paths are used:    
+    # We replace the initial program name with one which won't break if relative paths are used:
     sys.argv[0]    = os.path.realpath(sys.argv[0])
 
     configure_logging()
-    
+
     logging.info("Loaded configuration from %s" % CRANKD_OPTIONS.config_file)
 
     if "NSWorkspace" in CRANKD_CONFIG:
@@ -472,14 +500,15 @@ def do_shell(command, context=None, **kwargs):
     """Executes a shell command with logging"""
     logging.info("%s: executing %s" % (context, command))
 
-    child_env = {'context': context}
-    for k in kwargs:
-        if callable(kwargs[k]):
-            continue
-        elif hasattr(kwargs[k], 'keys') and callable(kwargs[k].keys):
-            child_env.update(kwargs[k])
-        else:
-            child_env[k] = str(kwargs[k])
+    child_env = {'CRANKD_CONTEXT': context}
+
+    # We'll pull a subset of the available information in for shell scripts.
+    # Anyone who needs more will probably want to write a Python handler
+    # instead so they can reuse things like our logger & config info and avoid
+    # ordeals like associative arrays in Bash
+    for k in [ 'info', 'key' ]:
+        if k in kwargs and kwargs[k]:
+            child_env['CRANKD_%s' % k.upper()] = str(kwargs[k])
 
     try:
         rc = call(command, shell=True, env=child_env)
