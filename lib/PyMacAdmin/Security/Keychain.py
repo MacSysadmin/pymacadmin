@@ -1,11 +1,11 @@
 #!/usr/bin/env python
 # encoding: utf-8
 """
-Wrapper for the core Keychain API:
+Wrapper for the core Keychain API
+
+Most of the internals are directly based on the native Keychain API. Apple's developer documentation is highly relevant:
 
 http://developer.apple.com/documentation/Security/Reference/keychainservices/Reference/reference.html#//apple_ref/doc/uid/TP30000898-CH1-SW1
-
-Created by Chris Adams on 2009-01-06.
 """
 
 import os
@@ -241,3 +241,46 @@ class InternetPassword(GenericPassword):
                 props.append("%s=%s" % (k, repr(getattr(self, k))))
 
         return "%s(%s)" % (self.__class__.__name__, ", ".join(props))
+
+class SecKeychainAttribute(ctypes.Structure):
+    """Contains keychain attributes
+
+    tag:    A 4-byte attribute tag.
+    length: The length of the buffer pointed to by data.
+    data:   A pointer to the attribute data.
+    """
+    _fields_ = [
+        ('tag',     ctypes.c_char_p),
+        ('length',  ctypes.c_int32),
+        ('data',    ctypes.c_char_p)
+    ]
+
+class SecKeychainAttributeList(ctypes.Structure):
+    """Represents a list of keychain attributes
+
+    count:  An unsigned 32-bit integer that represents the number of keychain attributes in the array.
+    attr:   A pointer to the first keychain attribute in the array.
+    """
+    _fields_ = [
+        ('count',   ctypes.c_uint),
+        ('attr',    ctypes.POINTER(SecKeychainAttribute))
+    ]
+
+class SecKeychainAttributeInfo(ctypes.Structure):
+    """Represents a keychain attribute as a pair of tag and format values.
+
+    count:  The number of tag-format pairs in the respective arrays
+    tag:    A pointer to the first attribute tag in the array
+    format: A pointer to the first CSSM_DB_ATTRIBUTE_FORMAT in the array
+    """
+    _fields_ = [
+        ('count',   ctypes.c_uint),
+        ('tag',     ctypes.POINTER(ctypes.c_uint)),
+        ('format',  ctypes.POINTER(ctypes.c_uint))
+    ]
+
+# The APIs expect pointers to SecKeychainAttributeInfo objects and we'd
+# like to avoid having to manage memory manually:
+SecKeychainAttributeInfo_p = ctypes.POINTER(SecKeychainAttributeInfo)
+SecKeychainAttributeInfo_p.__del__ = lambda s: Security.lib.SecKeychainFreeAttributeInfo(s)
+
