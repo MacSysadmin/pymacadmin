@@ -37,8 +37,7 @@ def main():
 
     try:
         keychain = Keychain(options.keychain)
-
-        item     = keychain.find_generic_password(
+        item = keychain.find_generic_password(
             service_name=options.service,
             account_name=options.account
         )
