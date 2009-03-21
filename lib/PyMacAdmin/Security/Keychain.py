@@ -38,7 +38,7 @@ class Keychain(object):
 
     def find_generic_password(self, service_name="", account_name=""):
         """Pythonic wrapper for SecKeychainFindGenericPassword"""
-        item            = ctypes.c_void_p()
+        item_p          = ctypes.c_uint32()
         password_length = ctypes.c_uint32(0)
         password_data   = ctypes.c_char_p(256)
 
@@ -57,7 +57,7 @@ class Keychain(object):
             account_name,                       # Account name
             ctypes.byref(password_length),      # Will be filled with pw length
             ctypes.pointer(password_data),      # Will be filled with pw data
-            ctypes.pointer(item)
+            ctypes.byref(item_p)
         )
 
         if rc == -25300:
@@ -67,9 +67,48 @@ class Keychain(object):
 
         password = password_data.value[0:password_length.value]
 
-        Security.lib.SecKeychainItemFreeContent(None, password_data)
+        # itemRef: A reference to the keychain item from which you wish to
+        # retrieve data or attributes.
+        #
+        # info:  A pointer to a list of tags of attributes to retrieve.
+        #
+        # itemClass: A pointer to the item’s class. You should pass NULL if not
+        # required. See “Keychain Item Class Constants” for valid constants.
+        #
+        # attrList: On input, the list of attributes in this item to get; on
+        # output the attributes are filled in. You should call the function
+        # SecKeychainItemFreeAttributesAndData when you no longer need the
+        # attributes and data.
+        #
+        # length: On return, a pointer to the actual length of the data.
+        #
+        # outData: A pointer to a buffer containing the data in this item. Pass
+        # NULL if not required. You should call the function
+        # SecKeychainItemFreeAttributesAndData when you no longer need the
+        # attributes and data.
 
-        return GenericPassword(service_name=service_name, account_name=account_name, password=password, keychain_item=item)
+        d_len   = ctypes.c_int(0)
+        info    = SecKeychainAttributeInfo()
+        attrs_p = SecKeychainAttributeList_p()
+
+        # Thank you Wil Shipley:
+        # http://www.wilshipley.com/blog/2006/10/pimp-my-code-part-12-frozen-in.html
+        # SecKeychainAttributeInfo should allow .append(tag, [data])
+        info.count = 1
+        info.tag.contents = ctypes.c_ulong(7) # TODO: add kSecLabelItemAttr define
+
+        Security.lib.SecKeychainItemCopyAttributesAndData(item_p, ctypes.pointer(info), None, ctypes.byref(attrs_p), ctypes.byref(d_len), None)
+        attrs = attrs_p.contents
+        assert(attrs.count == 1)
+        # TODO: This should move into standard iterator support for SecKeychainAttributeList:
+        # for offset in range(0, attrs.count):
+        #     print "[%d]: %s(%d): %s" % (offset, attrs.attr[offset].tag, attrs.attr[offset].length, attrs.attr[offset].data)
+
+        label = attrs.attr[0].data[:attrs.attr[0].length]
+
+        Security.lib.SecKeychainItemFreeContent(None, item_p)
+
+        return GenericPassword(service_name=service_name, account_name=account_name, password=password, keychain_item=item_p, label=label)
 
     def find_internet_password(self, account_name="", password="", server_name="", security_domain="", path="", port=0, protocol_type=None, authentication_type=None):
         """Pythonic wrapper for SecKeychainFindInternetPassword"""
@@ -86,7 +125,7 @@ class Keychain(object):
         if not isinstance(port, int):
             port = int(port)
 
-        rc = Security.lib.SecKeychainFindInternetPassword (
+        rc = Security.lib.SecKeychainFindInternetPassword(
             self.keychain_handle,
             len(server_name),
             server_name,
@@ -165,10 +204,10 @@ class Keychain(object):
 class GenericPassword(object):
     """Generic keychain password used with SecKeychainAddGenericPassword and SecKeychainFindGenericPassword"""
     # TODO: Add support for access control and attributes
-    # TODO: Add item name support
 
     account_name  = None
     service_name  = None
+    label         = None
     password      = None
     keychain_item = None # An SecKeychainItemRef treated as an opaque object
 
@@ -213,7 +252,7 @@ class GenericPassword(object):
 
     def __repr__(self):
         props = []
-        for k in ['service_name', 'account_name']:
+        for k in ['service_name', 'account_name', 'label']:
             props.append("%s=%s" % (k, repr(getattr(self, k))))
 
         return "%s(%s)" % (self.__class__.__name__, ", ".join(props))
@@ -250,8 +289,8 @@ class SecKeychainAttribute(ctypes.Structure):
     data:   A pointer to the attribute data.
     """
     _fields_ = [
-        ('tag',     ctypes.c_char_p),
-        ('length',  ctypes.c_int32),
+        ('tag',     ctypes.c_uint32),
+        ('length',  ctypes.c_uint32),
         ('data',    ctypes.c_char_p)
     ]
 
@@ -282,5 +321,9 @@ class SecKeychainAttributeInfo(ctypes.Structure):
 # The APIs expect pointers to SecKeychainAttributeInfo objects and we'd
 # like to avoid having to manage memory manually:
 SecKeychainAttributeInfo_p = ctypes.POINTER(SecKeychainAttributeInfo)
-SecKeychainAttributeInfo_p.__del__ = lambda s: Security.lib.SecKeychainFreeAttributeInfo(s)
+# BUG: This causes a crash if the Python object is never initialized correctly. We should define a checked free function instead:
+# SecKeychainAttributeInfo_p.__del__ = lambda self: Security.lib.SecKeychainFreeAttributeInfo(self)
 
+SecKeychainAttributeList_p = ctypes.POINTER(SecKeychainAttributeList)
+# BUG: This causes a crash if the Python object is never initialized correctly. We should define a checked free function instead:
+# SecKeychainAttributeList_p.__del__ = lambda self: Security.lib.SecKeychainFreeAttributeInfo(self)

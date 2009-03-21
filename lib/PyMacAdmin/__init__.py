@@ -39,16 +39,15 @@ def load_carbon_framework(f_path):
     <CDLL '/System/Library/Frameworks/Security.framework/Versions/Current/Security', handle 318320 at 2515f0>
     """
     framework = ctypes.cdll.LoadLibrary(f_path)
-    old_getitem = framework.__getitem__
 
     # TODO: Do we ever need to wrap framework.__getattr__ too?
+    old_getitem = framework.__getitem__
     @wraps(old_getitem)
     def new_getitem(k):
         v = old_getitem(k)
         if hasattr(v, "errcheck") and not v.errcheck:
             v.errcheck = carbon_errcheck
         return v
-
     framework.__getitem__ = new_getitem
 
     return framework

@@ -32,7 +32,7 @@ def main():
     if not options.keychain and os.getuid() == 0:
         options.keychain = "/Library/Keychains/System.keychain"
 
-    if not options.account and options.service:
+    if not (options.account or options.service):
         parser.error("You must specify either an account or service name")
 
     try:
