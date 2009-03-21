@@ -87,26 +87,21 @@ class Keychain(object):
         # SecKeychainItemFreeAttributesAndData when you no longer need the
         # attributes and data.
 
-        d_len   = ctypes.c_int(0)
         info    = SecKeychainAttributeInfo()
         attrs_p = SecKeychainAttributeList_p()
 
         # Thank you Wil Shipley:
         # http://www.wilshipley.com/blog/2006/10/pimp-my-code-part-12-frozen-in.html
-        # SecKeychainAttributeInfo should allow .append(tag, [data])
         info.count = 1
-        info.tag.contents = ctypes.c_ulong(7) # TODO: add kSecLabelItemAttr define
+        info.tag.contents = Security.kSecLabelItemAttr
 
-        Security.lib.SecKeychainItemCopyAttributesAndData(item_p, ctypes.pointer(info), None, ctypes.byref(attrs_p), ctypes.byref(d_len), None)
+        Security.lib.SecKeychainItemCopyAttributesAndData(item_p, ctypes.pointer(info), None, ctypes.byref(attrs_p), None, None)
         attrs = attrs_p.contents
         assert(attrs.count == 1)
-        # TODO: This should move into standard iterator support for SecKeychainAttributeList:
-        # for offset in range(0, attrs.count):
-        #     print "[%d]: %s(%d): %s" % (offset, attrs.attr[offset].tag, attrs.attr[offset].length, attrs.attr[offset].data)
 
         label = attrs.attr[0].data[:attrs.attr[0].length]
 
-        Security.lib.SecKeychainItemFreeContent(None, item_p)
+        Security.lib.SecKeychainFreeAttributeInfo(attrs_p)
 
         return GenericPassword(service_name=service_name, account_name=account_name, password=password, keychain_item=item_p, label=label)
 
@@ -300,6 +295,20 @@ class SecKeychainAttributeList(ctypes.Structure):
     count:  An unsigned 32-bit integer that represents the number of keychain attributes in the array.
     attr:   A pointer to the first keychain attribute in the array.
     """
+
+    # TODO: Standard iterator support for SecKeychainAttributeList:
+    #
+    #   for offset in range(0, attrs.count):
+    #     print "[%d]: %s: %s" % (offset, attrs.attr[offset].tag, attrs.attr[offset].data[:attrs.attr[offset].length])
+    #
+    # becomes:
+    #
+    #   for tag, data in attrs:
+    #       …
+    #
+    #   attrs[tag] should also work
+    #
+
     _fields_ = [
         ('count',   ctypes.c_uint),
         ('attr',    ctypes.POINTER(SecKeychainAttribute))
@@ -312,18 +321,13 @@ class SecKeychainAttributeInfo(ctypes.Structure):
     tag:    A pointer to the first attribute tag in the array
     format: A pointer to the first CSSM_DB_ATTRIBUTE_FORMAT in the array
     """
+    # TODO: SecKeychainAttributeInfo should allow .append(tag, [data])
     _fields_ = [
         ('count',   ctypes.c_uint),
         ('tag',     ctypes.POINTER(ctypes.c_uint)),
         ('format',  ctypes.POINTER(ctypes.c_uint))
     ]
 
-# The APIs expect pointers to SecKeychainAttributeInfo objects and we'd
-# like to avoid having to manage memory manually:
+# The APIs expect pointers to SecKeychainAttributeInfo objects:
 SecKeychainAttributeInfo_p = ctypes.POINTER(SecKeychainAttributeInfo)
-# BUG: This causes a crash if the Python object is never initialized correctly. We should define a checked free function instead:
-# SecKeychainAttributeInfo_p.__del__ = lambda self: Security.lib.SecKeychainFreeAttributeInfo(self)
-
 SecKeychainAttributeList_p = ctypes.POINTER(SecKeychainAttributeList)
-# BUG: This causes a crash if the Python object is never initialized correctly. We should define a checked free function instead:
-# SecKeychainAttributeList_p.__del__ = lambda self: Security.lib.SecKeychainFreeAttributeInfo(self)
