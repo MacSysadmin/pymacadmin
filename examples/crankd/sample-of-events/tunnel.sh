@@ -26,7 +26,14 @@ else
     logger "[$CATEGORY] $SPECIFIC event occurred."
     
     # Speak the event out loud
-    say "$CATEGORY event occurred."
+    # (I am expanding the text, so that "NSWorkspaceDidTerminateApplicationNotification"
+    # becomes "N S Workspace Did Terminate Application Notification", which is more
+    # readily pronounced; see http://stackoverflow.com/questions/199059/
+    # im-looking-for-a-pythonic-way-to-insert-a-space-before-capital-letters ,
+    # and add a bunch of escaping backslashes!)
+    
+    EXPANDED=`python -c "import re ; print re.sub(r\"\\B([A-Z])\", r\" \\1\", \"$SPECIFIC\")"`
+    say "$EXPANDED event occurred."
 
 fi
 
