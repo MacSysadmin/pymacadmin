@@ -35,8 +35,8 @@ def load_carbon_framework(f_path):
     replace traditional errno-style error checks with exception handling.
 
     Example:
-    >>> PyMacAdmin.load_carbon_framework('/System/Library/Frameworks/Security.framework/Versions/Current/Security')
-    <CDLL '/System/Library/Frameworks/Security.framework/Versions/Current/Security', handle 318320 at 2515f0>
+    >>> load_carbon_framework('/System/Library/Frameworks/Security.framework/Versions/Current/Security') # doctest: +ELLIPSIS
+    <CDLL '/System/Library/Frameworks/Security.framework/Versions/Current/Security', handle ... at ...>
     """
     framework = ctypes.cdll.LoadLibrary(f_path)
 
