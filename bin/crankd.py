@@ -73,6 +73,7 @@ FS_WATCHED_FILES = dict()     # Callbacks indexed by filesystem path
 CRANKD_OPTIONS   = None
 CRANKD_CONFIG    = None
 
+
 class BaseHandler(object):
     """A base class from which event handlers can inherit things like the system logger"""
     options = {}
@@ -232,10 +233,22 @@ def process_commandline():
     (options, args) = parser.parse_args()
 
     if len(args):
-        print >> sys.stderr, "Unknown command-line arguments:", args
-        sys.exit(1)
+        parser.error("Unknown command-line arguments: %s" % args)
 
     options.support_path = support_path
+    options.config_file = os.path.realpath(options.config_file)
+
+    # This is somewhat messy but we want to alter the command-line to use full
+    # file paths in case someone's code changes the current directory or the
+    sys.argv = [ os.path.realpath(sys.argv[0]), ]
+
+    if options.debug:
+        logging.getLogger().setLevel(logging.DEBUG)
+        sys.argv.append("--debug")
+
+    if options.config_file:
+        sys.argv.append("--config")
+        sys.argv.append(options.config_file)
 
     return options
 
@@ -243,8 +256,9 @@ def process_commandline():
 def load_config(options):
     """Load our configuration from plist or create a default file if none exists"""
     if not os.path.exists(options.config_file):
-        print 'Creating %s with default options for you to customize' % options.config_file
-        print '%s --list-events will list the events you can monitor on this system' % sys.argv[0]
+        logging.info("%s does not exist - initializing with an example configuration" % CRANKD_OPTIONS.config_file)
+        print >>sys.stderr, 'Creating %s with default options for you to customize' % options.config_file
+        print >>sys.stderr, '%s --list-events will list the events you can monitor on this system' % sys.argv[0]
         example_config = {
             'SystemConfiguration': {
                 'State:/Network/Global/IPv4': {
@@ -266,6 +280,8 @@ def load_config(options):
         writePlist(example_config, options.config_file)
         sys.exit(1)
 
+    logging.info("Loading configuration from %s" % CRANKD_OPTIONS.config_file)
+
     plist = readPlist(options.config_file)
 
     if "imports" in plist:
@@ -280,18 +296,14 @@ def load_config(options):
 
 def configure_logging():
     """Configures the logging module"""
-    # TODO: Add separate log_level, console_level for logging? Or just skip straight to a logging config file?
-
-    default_level = logging.DEBUG if CRANKD_OPTIONS.debug else logging.INFO
-
-    logging.basicConfig(level=default_level, format='%(levelname)s: %(message)s')
+    logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
 
     # Enable logging to syslog as well:
     # Normally this would not be necessary but logging assumes syslog listens on
     # localhost syslog/udp, which is disabled on 10.5 (rdar://5871746)
     syslog = logging.handlers.SysLogHandler('/var/run/syslog')
     syslog.setFormatter(logging.Formatter('%(name)s: %(message)s'))
-    syslog.setLevel(default_level)
+    syslog.setLevel(logging.INFO)
     logging.getLogger().addHandler(syslog)
 
 
@@ -450,16 +462,11 @@ def timer_callback(*args):
 
 
 def main():
+    configure_logging()
+
     global CRANKD_OPTIONS, CRANKD_CONFIG
     CRANKD_OPTIONS = process_commandline()
     CRANKD_CONFIG  = load_config(CRANKD_OPTIONS)
-
-    # We replace the initial program name with one which won't break if relative paths are used:
-    sys.argv[0]    = os.path.realpath(sys.argv[0])
-
-    configure_logging()
-
-    logging.info("Loaded configuration from %s" % CRANKD_OPTIONS.config_file)
 
     if "NSWorkspace" in CRANKD_CONFIG:
         add_workspace_notifications(CRANKD_CONFIG['NSWorkspace'])
@@ -473,8 +480,13 @@ def main():
     # We reuse our FSEvents code to watch for changes to our files and
     # restart if any of our libraries have been updated:
     add_conditional_restart(CRANKD_OPTIONS.config_file, "Configuration file %s changed" % CRANKD_OPTIONS.config_file)
-    for (m_name, m_file) in [(k, v) for k, v in sys.modules.iteritems() if hasattr(v, '__file__')]:
-        add_conditional_restart(m_file.__file__, "Module %s was updated" % m_name)
+    for m in filter(lambda m: m and hasattr(m, '__file__'), sys.modules.values()):
+        if m.__name__ == "__main__":
+            msg = "%s was updated" % m.__file__
+        else:
+            msg = "Module %s was updated" % m.__name__
+
+        add_conditional_restart(m.__file__, msg)
 
     signal.signal(signal.SIGHUP, partial(restart, "SIGHUP received"))
 
@@ -541,7 +553,8 @@ def do_shell(command, context=None, **kwargs):
 
 
 def add_conditional_restart(file_name, reason):
-    """FSEvents monitors directories, not files. This function uses stat to restart only if the file's mtime has changed"""
+    """FSEvents monitors directories, not files. This function uses stat to
+    restart only if the file's mtime has changed"""
     file_name = os.path.realpath(file_name)
     while not os.path.exists(file_name):
         file_name = os.path.dirname(file_name)
@@ -558,7 +571,7 @@ def add_conditional_restart(file_name, reason):
 
 
 def restart(reason, *args, **kwargs):
-    """Perform a fresh restart of the current process"""
+    """Perform a complete restart of the current process using exec()"""
     logging.info("Restarting: %s" % reason)
     os.execv(sys.argv[0], sys.argv)
 
