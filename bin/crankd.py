@@ -53,6 +53,7 @@ import os.path
 import logging
 import logging.handlers
 import sys
+import re
 from subprocess import call
 from optparse import OptionParser
 from plistlib import readPlist, writePlist
@@ -495,6 +496,19 @@ def main():
 
     sys.exit(0)
 
+def create_env_name(name):
+    """
+    Converts input names into more traditional shell environment name style
+
+    >>> create_env_name("NSApplicationBundleIdentifier")
+    'NSAPPLICATION_BUNDLE_IDENTIFIER'
+    >>> create_env_name("NSApplicationBundleIdentifier-1234$foobar!")
+    'NSAPPLICATION_BUNDLE_IDENTIFIER_1234_FOOBAR'
+    """
+    new_name = re.sub(r'''(?<=[a-z])([A-Z])''', '_\\1', name)
+    new_name = re.sub(r'\W+', '_', new_name)
+    new_name = re.sub(r'_{2,}', '_', new_name)
+    return new_name.upper().strip("_")
 
 def do_shell(command, context=None, **kwargs):
     """Executes a shell command with logging"""
@@ -509,6 +523,10 @@ def do_shell(command, context=None, **kwargs):
     for k in [ 'info', 'key' ]:
         if k in kwargs and kwargs[k]:
             child_env['CRANKD_%s' % k.upper()] = str(kwargs[k])
+
+    if 'user_info' in kwargs:
+        for k, v in kwargs['user_info'].items():
+            child_env[create_env_name(k)] = str(v)
 
     try:
         rc = call(command, shell=True, env=child_env)
