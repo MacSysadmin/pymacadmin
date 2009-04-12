@@ -38,5 +38,4 @@ rc = Security.SecKeychainItemDelete( item )
 
 if rc != 0:
     raise RuntimeError('SecKeychainItemDelete failed: rc=%d' % rc)
-    
-    
+
