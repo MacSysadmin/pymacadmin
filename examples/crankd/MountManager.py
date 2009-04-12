@@ -8,4 +8,4 @@ class MountManager(BaseHandler):
     def onNSWorkspaceDidUnmountNotification_(self, aNotification):
         path = aNotification.userInfo()['NSDevicePath']
         self.logger.info("Unmount: %s" % path)
-        
+

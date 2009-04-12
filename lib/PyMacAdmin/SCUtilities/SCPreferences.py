@@ -17,20 +17,20 @@ class SCPreferences(object):
     """Utility class for working with the SystemConfiguration framework"""
     proxy_protocols = ('HTTP', 'FTP', 'SOCKS') # List of the supported protocols
     session = None
-    
+
     def __init__(self):
         super(SCPreferences, self).__init__()
         self.session = SCPreferencesCreate(None, "set-proxy", None)
-    
+
     def save(self):
         if not self.session:
-            return            
+            return
         if not SCPreferencesCommitChanges(self.session):
             raise RuntimeError("Unable to save SystemConfiguration changes")
         if not SCPreferencesApplyChanges(self.session):
             raise RuntimeError("Unable to apply SystemConfiguration changes")
-        
-    def set_proxy(self, enable=True, protocol="HTTP", server="localhost", port=3128):        
+
+    def set_proxy(self, enable=True, protocol="HTTP", server="localhost", port=3128):
         new_settings = SCPreferencesPathGetValue(self.session, u'/NetworkServices/')
 
         for interface in new_settings:
@@ -38,7 +38,7 @@ class SCPreferences(object):
             if enable:
                 new_settings[interface]['Proxies']['%sPort' % protocol]  = int(port)
                 new_settings[interface]['Proxies']['%sProxy' % protocol] = server
-        
+
         SCPreferencesPathSetValue(self.session, u'/NetworkServices/', new_settings)
 
 class SCPreferencesTests(unittest.TestCase):
