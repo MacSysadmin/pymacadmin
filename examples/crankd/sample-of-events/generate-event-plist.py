@@ -31,12 +31,12 @@ def AddCategoryOfEvents(event_category, events):
 
 def AddKnownEvents():
     """Here we add all the events that we know of to the dictionary"""
-    
+
     # Add a bunch of dynamic events
     store = SCDynamicStoreCreate(None, "generate_event_plist", None, None)
     AddCategoryOfEvents(u"SystemConfiguration",
                         SCDynamicStoreCopyKeyList(store, ".*"))
-    
+
     # Add some standard NSWorkspace events
     AddCategoryOfEvents(u"NSWorkspace",
                         u'''
@@ -57,28 +57,28 @@ def AddKnownEvents():
 def PrintEvents():
     """Prints all the events, for debugging purposes"""
     for category in sorted(event_dict):
-        
+
         print category
-        
+
         for event in sorted(event_dict[category]):
             print "\t" + event
 
 def OutputEvents():
     """Outputs all the events to a file"""
-    
+
     # print the header for the file
     plist = open(OUTPUT_FILE, 'w')
-    
+
     print >>plist, '''<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>'''
-    
+
     for category in sorted(event_dict):
-        
+
         # print out the category
         print >>plist, "  <key>%s</key>\n      <dict>" % category
-        
+
         for event in sorted(event_dict[category]):
             print >>plist, """
         <key>%s</key>
@@ -86,16 +86,16 @@ def OutputEvents():
           <key>command</key>
           <string>%s '%s' '%s'</string>
         </dict>""" % ( event, 'tunnel.sh', category, event )
-        
+
         # end the category
         print >>plist, "  </dict>"
-    
+
     # end the plist file
     print >>plist, '</dict>'
     print >>plist, '</plist>'
-    
+
     plist.close()
-    
+
 def main():
     """Runs the program"""
     AddKnownEvents()
@@ -104,4 +104,4 @@ def main():
 
 main()
 
-    
+

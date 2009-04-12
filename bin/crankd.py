@@ -19,9 +19,6 @@ class:        the name of a python class which will be instantiated once
 method:       (class, method) tuple
 """
 
-# Inspired by the PyObjC SystemConfiguration callback demos:
-# <https://svn.red-bean.com/pyobjc/trunk/pyobjc/pyobjc-framework-SystemConfiguration/Examples/CallbackDemo/>
-
 from Cocoa import \
     CFAbsoluteTimeGetCurrent, \
     CFRunLoopAddSource, \
@@ -61,23 +58,13 @@ from PyObjCTools import AppHelper
 from functools import partial
 import signal
 from datetime import datetime
-
-__all__          = ['BaseHandler', 'do_shell']
+from PyMacAdmin import crankd
 
 VERSION          = '$Revision:$'
 
 HANDLER_OBJECTS  = dict()     # Events which have a "class" handler use an instantiated object; we want to load only one copy
 SC_HANDLERS      = dict()     # Callbacks indexed by SystemConfiguration keys
 FS_WATCHED_FILES = dict()     # Callbacks indexed by filesystem path
-
-CRANKD_OPTIONS   = None
-CRANKD_CONFIG    = None
-
-
-class BaseHandler(object):
-    """A base class from which event handlers can inherit things like the system logger"""
-    options = {}
-    logger  = logging.getLogger()
 
 def log_list(msg, items, level=logging.INFO):
     """
@@ -121,7 +108,6 @@ def get_callable_for_event(name, event_config, context=None):
     kwargs = {
         'context':  context,
         'key':      name,
-        'logger':   logging.getLogger(),
         'config':   event_config,
     }
 
@@ -169,9 +155,8 @@ def get_handler_object(class_name):
 
     if class_name not in HANDLER_OBJECTS:
         h_obj = get_callable_from_string(class_name)()
-        if isinstance(h_obj, BaseHandler):
-            h_obj.logger  = logging.getLogger()
-            h_obj.options = options
+        if isinstance(h_obj, crankd.handlers.BaseHandler):
+            pass # TODO: Do we even need BaseHandler any more?
         HANDLER_OBJECTS[class_name] = h_obj
 
     return HANDLER_OBJECTS[class_name]
@@ -316,20 +301,6 @@ def add_workspace_notifications(nsw_config):
     # See http://developer.apple.com/documentation/Cocoa/Conceptual/Workspace/Workspace.html
     notification_center = NSWorkspace.sharedWorkspace().notificationCenter()
 
-    class NotificationHandler(NSObject):
-        """Simple object for handling NSNotification events"""
-
-        def __init__(self):
-            self.callable = compile('raise NotImplementedError("No callable provided!")')
-
-        def onNotification_(self, the_notification):
-            if the_notification.userInfo:
-                user_info = the_notification.userInfo()
-            else:
-                user_info = None
-            self.callable(user_info=user_info)
-
-
     for event in nsw_config:
         event_config = nsw_config[event]
 
@@ -344,7 +315,7 @@ def add_workspace_notifications(nsw_config):
 
             notification_center.addObserver_selector_name_object_(obj, objc_method, event, None)
         else:
-            handler          = NotificationHandler.new()
+            handler          = NSNotificationHandler.new()
             handler.name     = "NSWorkspace Notification %s" % event
             handler.callable = get_callable_for_event(event, event_config, context=handler.name)
 
@@ -365,6 +336,9 @@ def add_sc_notifications(sc_config):
 
     TN1145 may also be of interest:
         <http://developer.apple.com/technotes/tn/tn1145.html>
+
+    Inspired by the PyObjC SystemConfiguration callback demos:
+    <https://svn.red-bean.com/pyobjc/trunk/pyobjc/pyobjc-framework-SystemConfiguration/Examples/CallbackDemo/>
     """
 
     keys = sc_config.keys()
@@ -480,7 +454,7 @@ def main():
     # We reuse our FSEvents code to watch for changes to our files and
     # restart if any of our libraries have been updated:
     add_conditional_restart(CRANKD_OPTIONS.config_file, "Configuration file %s changed" % CRANKD_OPTIONS.config_file)
-    for m in filter(lambda m: m and hasattr(m, '__file__'), sys.modules.values()):
+    for m in filter(lambda i: i and hasattr(i, '__file__'), sys.modules.values()):
         if m.__name__ == "__main__":
             msg = "%s was updated" % m.__file__
         else:
@@ -497,7 +471,7 @@ def main():
     #       appear tolerably responsive:
     CFRunLoopAddTimer(
         NSRunLoop.currentRunLoop().getCFRunLoop(),
-        CFRunLoopTimerCreate(None, CFAbsoluteTimeGetCurrent(), 5.0, 0, 0, timer_callback, None),
+        CFRunLoopTimerCreate(None, CFAbsoluteTimeGetCurrent(), 2.0, 0, 0, timer_callback, None),
         kCFRunLoopCommonModes
     )
 
@@ -564,7 +538,7 @@ def add_conditional_restart(file_name, reason):
         try:
             if os.stat(file_name).st_mtime != orig_stat:
                 restart(reason)
-        except (IOError, RuntimeError), exc:
+        except (OSError, IOError, RuntimeError), exc:
             restart("Exception while checking %s: %s" % (file_name, exc))
 
     add_fs_notification(file_name, cond_restart)

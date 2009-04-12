@@ -38,21 +38,21 @@ def UpdatePassword(account_name, new_password, server_name, protocol_type_string
         protocol_type_code = FourCharCode(protocol_type_string)
     else:
         protocol_type_code = 0
-    
+
     # Call function to locate existing keychain item
     rc = Security.SecKeychainFindInternetPassword(
-        None, 
-        len(server_name), 
+        None,
+        len(server_name),
         server_name,
-        None, 
-        None, 
-        len(account_name), 
-        account_name, 
-        None, 
-        None, 
-        port_number, 
-        protocol_type_code, 
-        None, 
+        None,
+        None,
+        len(account_name),
+        account_name,
+        None,
+        None,
+        port_number,
+        protocol_type_code,
+        None,
         None, # To retrieve the current password, change this argument to: ctypes.byref(password_length)
         None, # To retrieve the current password, change this argument to: ctypes.pointer(password_pointer)
         ctypes.pointer(item)
@@ -60,18 +60,18 @@ def UpdatePassword(account_name, new_password, server_name, protocol_type_string
 
     if rc != 0:
         raise RuntimeError('Did not find existing password for server %s, protocol type %s, account name %s: rc=%d' % (server_name, protocol_type_code, account_name, rc))
-    
+
     # Call function to update password
     rc = Security.SecKeychainItemModifyAttributesAndData(
-        item, 
-        None, 
-        len(new_password), 
+        item,
+        None,
+        len(new_password),
         new_password
     )
 
     if rc != 0:
         raise RuntimeError('Failed to record new password for server %s, protocol type %s, account name %s: rc=%d' % (server_name, protocol_type_code, account_name, rc))
-    
+
     return 0
 
 # Start execution
@@ -85,11 +85,11 @@ account_name = sys.argv[1]
 new_password = sys.argv[2]
 
 # Call UpdatePassword for each password to update.
-# 
+#
 # If more than one keychain item will match a server and account name, you must
 # specify a protocol type. Otherwise, only the first matching item will be
 # updated.
-#     
+#
 # The list of protocol type codes is in
 # /System/Library/Frameworks/Security.framework/Versions/Current/Headers/SecKeychain.h
 
