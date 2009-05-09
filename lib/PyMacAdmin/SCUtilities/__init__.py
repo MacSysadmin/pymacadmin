@@ -4,10 +4,9 @@
 SCUtilities: tools for dealing with Apple's SystemConfiguration framework
 
 Created by Chris Adams on 2008-05-28.
-
-TODO:
-* Import code related to SystemConfiguration events
 """
+
+# TODO: Import code related to SystemConfiguration events
 
 import sys
 import os

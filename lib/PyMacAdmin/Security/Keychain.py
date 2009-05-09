@@ -67,6 +67,8 @@ class Keychain(object):
 
         password = password_data.value[0:password_length.value]
 
+        Security.lib.SecKeychainItemFreeContent(None, password_data)
+
         # itemRef: A reference to the keychain item from which you wish to
         # retrieve data or attributes.
         #
@@ -93,7 +95,7 @@ class Keychain(object):
         # Thank you Wil Shipley:
         # http://www.wilshipley.com/blog/2006/10/pimp-my-code-part-12-frozen-in.html
         info.count = 1
-        info.tag.contents = Security.kSecLabelItemAttr
+        info.tag.contents   = Security.kSecLabelItemAttr
 
         Security.lib.SecKeychainItemCopyAttributesAndData(item_p, ctypes.pointer(info), None, ctypes.byref(attrs_p), None, None)
         attrs = attrs_p.contents
@@ -101,7 +103,7 @@ class Keychain(object):
 
         label = attrs.attr[0].data[:attrs.attr[0].length]
 
-        Security.lib.SecKeychainFreeAttributeInfo(attrs_p)
+        Security.lib.SecKeychainItemFreeAttributesAndData(attrs_p)
 
         return GenericPassword(service_name=service_name, account_name=account_name, password=password, keychain_item=item_p, label=label)
 

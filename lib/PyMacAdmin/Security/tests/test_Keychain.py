@@ -25,8 +25,7 @@ class KeychainTests(unittest.TestCase):
 
     def test_find_airport_password(self):
         system_keychain = Keychain("/Library/Keychains/System.keychain")
-        # BUG: Most people probably have this - but not everyone?
-        system_keychain.find_generic_password(account_name="linksys")
+        system_keychain.find_generic_password(account_name="default")
 
     def test_find_nonexistent_generic_password(self):
         import uuid
@@ -49,8 +48,7 @@ class KeychainTests(unittest.TestCase):
 
     def test_find_internet_password(self):
         keychain = Keychain()
-        i        = keychain.find_internet_password(server_name="connect.apple.com") # BUG: Most people probably have this - but not everyone?
-
+        i = keychain.find_internet_password(server_name="connect.apple.com")
         self.failIfEqual(i, None)
 
     def test_add_and_remove_internet_password(self):
