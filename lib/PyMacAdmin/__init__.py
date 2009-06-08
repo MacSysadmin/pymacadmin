@@ -12,22 +12,26 @@ def mac_strerror(errno):
     except ImportError:
         return "Unknown error %d: MacOS.GetErrorString is not available by this Python"
 
-def carbon_errcheck(rc, func, args):
-    if rc < 0:
-        # TODO: Do we need to create a function which can safely check __name__
-        # and handle non-existence? It should be set for anything using ctypes
-        # and this shouldn't be useful otherwise
-        # TODO: Create a custom exception which preserves the original rc value?
-        raise RuntimeError("%s(%s) returned %d: %s" % (func.__name__, map(repr, args), rc, mac_strerror(rc)))
-    return rc
+def checked_carbon_call(rc, func, args):
+    """
+        Call a carbon function and raise an exception when the return code is
+        less than 0. This is intended for use with load_carbon_framework but
+        can also be used as a standalone function similar to
+        subprocess.check_call.
 
-def carbon_call(f, *args):
+        Most errors will raise RuntimeError but the intent is to raise a more
+        precise exception where applicable - e.g KeyError for
+        errKCItemNotFound (returned when a Keychain query matches no items)
     """
-    Wrapper for Carbon calls inspired by subprocess.check_call(): a negative
-    rc will generate a RuntimeError with a [hopefully] informative message.
-    """
-    rc = f(*args)
-    return carbon_errcheck(rc, f, args)
+
+    if rc < 0:
+        if rc == -25300: #errKCItemNotFound
+            exc_class = KeyError
+        else:
+            exc_class = RuntimeError
+
+        raise exc_class("%s(%s) returned %d: %s" % (func.__name__, map(repr, args), rc, mac_strerror(rc)))
+    return rc
 
 def load_carbon_framework(f_path):
     """
@@ -46,7 +50,7 @@ def load_carbon_framework(f_path):
     def new_getitem(k):
         v = old_getitem(k)
         if hasattr(v, "errcheck") and not v.errcheck:
-            v.errcheck = carbon_errcheck
+            v.errcheck = checked_carbon_call
         return v
     framework.__getitem__ = new_getitem
 
