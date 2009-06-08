@@ -99,7 +99,7 @@ class Keychain(object):
 
         Security.lib.SecKeychainItemCopyAttributesAndData(item_p, ctypes.pointer(info), None, ctypes.byref(attrs_p), None, None)
         attrs = attrs_p.contents
-        assert(attrs.count == 1)
+        assert(attrs.count >= 1)
 
         label = attrs.attr[0].data[:attrs.attr[0].length]
 
