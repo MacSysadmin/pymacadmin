@@ -5,6 +5,7 @@ SCPreferences.py: Simplified interaction with SystemConfiguration preferences
 
 TODO:
 * Refactor getvalue/setvalue code into generic functions for dealing with things other than proxies
+* Add get_proxy() to parallel set_proxy()
 """
 
 import sys
