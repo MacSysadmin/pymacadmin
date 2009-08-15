@@ -223,6 +223,12 @@ def process_commandline():
     options.support_path = support_path
     options.config_file = os.path.realpath(options.config_file)
 
+    # If the user specified a config file and it's not the default, we'll
+    # add its directory to the python system path to allow simple cases
+    # where the config file and associated code are in the same place:
+    if not os.path.samefile(options.config_file, preference_file):
+        sys.path.append(os.path.dirname(options.config_file))
+
     # This is somewhat messy but we want to alter the command-line to use full
     # file paths in case someone's code changes the current directory or the
     sys.argv = [ os.path.realpath(sys.argv[0]), ]
