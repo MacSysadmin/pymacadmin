@@ -1,5 +1,6 @@
-#!/usr/bin/env python
+#!/usr/bin/python2.5
 # encoding: utf-8
+
 """
 Usage: %prog
 
@@ -58,13 +59,56 @@ from PyObjCTools import AppHelper
 from functools import partial
 import signal
 from datetime import datetime
-from PyMacAdmin import crankd
 
-VERSION          = '$Revision:$'
+
+VERSION          = '$Revision: #4 $'
 
 HANDLER_OBJECTS  = dict()     # Events which have a "class" handler use an instantiated object; we want to load only one copy
 SC_HANDLERS      = dict()     # Callbacks indexed by SystemConfiguration keys
 FS_WATCHED_FILES = dict()     # Callbacks indexed by filesystem path
+
+
+class BaseHandler(object):
+    # pylint: disable-msg=C0111,R0903
+    pass
+
+class NSNotificationHandler(NSObject):
+    """Simple base class for handling NSNotification events"""
+    # Method names and class structure are dictated by Cocoa & PyObjC, which
+    # is substantially different from PEP-8:
+    # pylint: disable-msg=C0103,W0232,R0903
+
+    def init(self):
+        """NSObject-compatible initializer"""
+        self = super(NSNotificationHandler, self).init()
+        if self is None: return None
+        self.callable = self.not_implemented
+        return self # NOTE: Unlike Python, NSObject's init() must return self!
+    
+    def not_implemented(self, *args, **kwargs):
+        """A dummy function which exists only to catch configuration errors"""
+        # TODO: Is there a better way to report the caller's location?
+        import inspect
+        stack = inspect.stack()
+        my_name = stack[0][3]
+        caller  = stack[1][3]
+        raise NotImplementedError(
+            "%s should have been overridden. Called by %s as: %s(%s)" % (
+                my_name,
+                caller,
+                my_name,
+                ", ".join(map(repr, args) + [ "%s=%s" % (k, repr(v)) for k,v in kwargs.items() ])
+            )
+        )
+
+    def onNotification_(self, the_notification):
+        """Pass an NSNotifications to our handler"""
+        if the_notification.userInfo:
+            user_info = the_notification.userInfo()
+        else:
+            user_info = None
+        self.callable(user_info=user_info) # pylint: disable-msg=E1101
+
 
 def log_list(msg, items, level=logging.INFO):
     """
@@ -155,7 +199,7 @@ def get_handler_object(class_name):
 
     if class_name not in HANDLER_OBJECTS:
         h_obj = get_callable_from_string(class_name)()
-        if isinstance(h_obj, crankd.handlers.BaseHandler):
+        if isinstance(h_obj, BaseHandler):
             pass # TODO: Do we even need BaseHandler any more?
         HANDLER_OBJECTS[class_name] = h_obj
 
@@ -222,12 +266,6 @@ def process_commandline():
 
     options.support_path = support_path
     options.config_file = os.path.realpath(options.config_file)
-
-    # If the user specified a config file and it's not the default, we'll
-    # add its directory to the python system path to allow simple cases
-    # where the config file and associated code are in the same place:
-    if not os.path.samefile(options.config_file, preference_file):
-        sys.path.append(os.path.dirname(options.config_file))
 
     # This is somewhat messy but we want to alter the command-line to use full
     # file paths in case someone's code changes the current directory or the
