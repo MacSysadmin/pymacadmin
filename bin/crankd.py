@@ -554,8 +554,9 @@ def do_shell(command, context=None, **kwargs):
         if k in kwargs and kwargs[k]:
             child_env['CRANKD_%s' % k.upper()] = str(kwargs[k])
 
-    if 'user_info' in kwargs:
-        for k, v in kwargs['user_info'].items():
+    user_info = kwargs.get("user_info")
+    if user_info:
+        for k, v in user_info.items():
             child_env[create_env_name(k)] = str(v)
 
     try:
