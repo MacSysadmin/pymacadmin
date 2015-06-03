@@ -59,6 +59,7 @@ from PyObjCTools import AppHelper
 from functools import partial
 import signal
 from datetime import datetime
+from objc import super
 
 
 VERSION          = '$Revision: #4 $'
@@ -85,7 +86,7 @@ class NotificationHandler(NSObject):
         if self is None: return None
         self.callable = self.not_implemented
         return self # NOTE: Unlike Python, NSObject's init() must return self!
-    
+
     def not_implemented(self, *args, **kwargs):
         """A dummy function which exists only to catch configuration errors"""
         # TODO: Is there a better way to report the caller's location?
