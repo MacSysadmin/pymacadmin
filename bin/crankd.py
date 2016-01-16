@@ -210,9 +210,16 @@ def get_handler_object(class_name):
 
 def handle_sc_event(store, changed_keys, info):
     """Fire every event handler for one or more events"""
+    try:
+        for key in changed_keys:
+            SC_HANDLERS[key](key=key, info=info)
+    except KeyError:
+        # If there's no exact match, go through the list again assuming regex
+        for key in changed_keys:
+            for handler in SC_HANDLERS:
+                if re.match(handler, key):
+                    SC_HANDLERS[handler](key=key, info=info)
 
-    for key in changed_keys:
-        SC_HANDLERS[key](key=key, info=info)
 
 
 def list_events(option, opt_str, value, parser):
@@ -333,7 +340,7 @@ def configure_logging():
     # Normally this would not be necessary but logging assumes syslog listens on
     # localhost syslog/udp, which is disabled on 10.5 (rdar://5871746)
     syslog = logging.handlers.SysLogHandler('/var/run/syslog')
-    syslog.setFormatter(logging.Formatter('%(name)s: %(message)s'))
+    syslog.setFormatter(logging.Formatter('%(pathname)s[%(process)d]:%(message)s'))
     syslog.setLevel(logging.INFO)
     logging.getLogger().addHandler(syslog)
 
@@ -369,7 +376,6 @@ def add_workspace_notifications(nsw_config):
 
             notification_center.addObserver_selector_name_object_(handler, "onNotification:", event, None)
             WORKSPACE_HANDLERS[event] = handler
-
     log_list("Listening for these NSWorkspace notifications: %s", nsw_config.keys())
 
 
@@ -557,9 +563,8 @@ def do_shell(command, context=None, **kwargs):
         if k in kwargs and kwargs[k]:
             child_env['CRANKD_%s' % k.upper()] = str(kwargs[k])
 
-    user_info = kwargs.get("user_info")
-    if user_info:
-        for k, v in user_info.items():
+    if 'user_info' in kwargs:
+        for k, v in kwargs['user_info'].items():
             child_env[create_env_name(k)] = str(v)
 
     try:
