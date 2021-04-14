@@ -260,7 +260,7 @@ def process_commandline():
   if os.getuid() == 0:
     support_path = "/Library/"
   else:
-    os.path.expanduser("~/Library/")
+    support_path = os.path.expanduser("~/Library/")
   preference_file = os.path.join(support_path, "Preferences",
                                  "com.googlecode.pymacadmin.crankd.plist")
   module_path = os.path.join(support_path, "Application Support/crankd")
