@@ -42,7 +42,7 @@ class DSException(Exception):
 
 def RunProcess(cmd, stdinput=None, env=None, cwd=None, sudo=False,
                sudo_password=None):
-  """Executes cmd using suprocess.
+  """Executes cmd using subprocess.
 
   Args:
     cmd: An array of strings as the command to run
