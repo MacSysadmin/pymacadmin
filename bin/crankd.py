@@ -1,4 +1,4 @@
-#!/usr/bin/python2.7
+#!/usr/bin/env python3
 # encoding: utf-8
 """Monitor system event notifications.
 
@@ -15,10 +15,6 @@ class:        the name of a python class which will be instantiated once
               and have methods called as events occur.
 method:       (class, method) tuple
 """
-
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
 
 import signal
 import sys
@@ -39,7 +35,6 @@ from PyObjCTools import AppHelper
 import re
 import subprocess
 import SystemConfiguration
-
 
 VERSION = "$Revision: #4 $"
 
@@ -143,6 +138,7 @@ def get_callable_for_event(name, event_config, context=None):
     name: str
     event_config: str, type of event
     context: optional context
+
   Returns:
     A callable object for use as a callback
   Raises:
@@ -166,8 +162,8 @@ def get_callable_for_event(name, event_config, context=None):
             get_handler_object(event_config["method"][0]),
             event_config["method"][1]), **kwargs)
   else:
-    raise AttributeError(
-        "%s must have a class, method, function or command" % name)
+    raise AttributeError("%s must have a class, method, function or command" %
+                         name)
 
   return f
 
@@ -197,8 +193,8 @@ def get_callable_from_string(f_name):
     return getattr(module, func_name)
 
   except (ImportError, AttributeError) as exc:
-    raise RuntimeError(
-        "Unable to create a callable object for '%s': %s" % (f_name, exc))
+    raise RuntimeError("Unable to create a callable object for '%s': %s" %
+                       (f_name, exc))
 
 
 def get_handler_object(class_name):
@@ -270,8 +266,7 @@ def process_commandline():
   else:
     print(
         "Module directory %s does not exist: "
-        "Python handlers will need to use absolute pathnames"
-        % module_path,
+        "Python handlers will need to use absolute pathnames" % module_path,
         file=sys.stderr)
 
   parser.add_option(
@@ -349,12 +344,21 @@ def load_config(options):
             }
         }
     }
-    plistlib.writePlist(example_config, options.config_file)
-    sys.exit(1)
+    try:
+      with open(options.config_file, "wb") as f:
+        plistlib.dump(example_config, f)
+    except (TypeError, OSError) as e:
+      logging.error("Could not write %s: %s", options.config_file, str(e))
+      sys.exit(1)
 
   logging.info("Loading configuration from %s", CRANKD_OPTIONS.config_file)
 
-  plist = plistlib.readPlist(options.config_file)
+  try:
+    with open(options.config_file, "rb") as f:
+      plist = plistlib.load(f)
+  except (TypeError, OSError) as e:
+    logging.error("Could not read %s: %s", options.config_file, str(e))
+    sys.exit(1)
 
   if "imports" in plist:
     for module in plist["imports"]:
@@ -400,8 +404,8 @@ def add_workspace_notifications(nsw_config):
       if not hasattr(obj, py_method) or not callable(getattr(obj, py_method)):
         print(
             "NSWorkspace Notification %s: "
-            "handler class %s must define a %s method"
-            % (event, event_config["class"], py_method),
+            "handler class %s must define a %s method" %
+            (event, event_config["class"], py_method),
             file=sys.stderr)
         sys.exit(1)
 
@@ -532,10 +536,8 @@ def fsevent_callback(unused_stream_ref, unused_full_path, event_count, paths,
       recursive = True
 
     if masks[i] & FSEvents.kFSEventStreamEventFlagKernelDropped:
-      logging.error(
-          "The kernel was too slow processing FSEvents "
-          "and some events were dropped!"
-      )
+      logging.error("The kernel was too slow processing FSEvents "
+                    "and some events were dropped!")
       recursive = True
     else:
       recursive = False
@@ -566,6 +568,7 @@ def create_env_name(name):
 
   Args:
     name: str, name to convert
+
   Returns:
     str, converted name
   """
@@ -650,11 +653,8 @@ def main():
       CRANKD_OPTIONS.config_file,
       "Configuration file %s changed" % CRANKD_OPTIONS.config_file)
   for m in [
-      i for i
-      in list(sys.modules.values())
-      if i
-      and hasattr(i, "__file__")
-      and i.__file__ is not None
+      i for i in list(sys.modules.values())
+      if i and hasattr(i, "__file__") and i.__file__ is not None
   ]:
     if m.__name__ == "__main__":
       msg = "%s was updated" % m.__file__
